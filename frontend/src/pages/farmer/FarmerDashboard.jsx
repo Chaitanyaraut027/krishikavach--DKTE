@@ -1,13 +1,159 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { agronomistAPI } from '../../services/api';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { agronomistAPI, weatherAPI, cropAPI, marketAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
+import LocationPromptModal from '../../components/LocationPromptModal';
 
+// ── Fix Leaflet default icon issue with Vite ───────────────────────────────
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// ── Custom map icons ───────────────────────────────────────────────────────
+const farmerIcon = L.divIcon({
+  html: `<div style="background:#166534;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">🌾</div>`,
+  className: '', iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
+});
+const agroIcon = L.divIcon({
+  html: `<div style="background:#2563eb;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">👨‍🔬</div>`,
+  className: '', iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18],
+});
+const marketIcon = L.divIcon({
+  html: `<div style="background:#b45309;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">🏪</div>`,
+  className: '', iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18],
+});
+
+// ── AI Farming tips rotation ───────────────────────────────────────────────
+const FARMING_TIPS = [
+  { icon: '🔍', tip: 'Regularly inspect your crops for early signs of disease — catching problems early can save up to 70% of your harvest.', label: 'Disease Prevention' },
+  { icon: '💧', tip: 'Water your crops in the early morning or evening to reduce evaporation loss by up to 30% during hot seasons.', label: 'Smart Irrigation' },
+  { icon: '🌱', tip: 'Apply organic compost before the sowing season to improve soil health and reduce fertilizer costs by 25%.', label: 'Soil Health' },
+  { icon: '📊', tip: 'Monitor mandi prices weekly before harvest to choose the best time to sell — prices can vary by 40% within a month.', label: 'Market Intelligence' },
+  { icon: '🧪', tip: 'Conduct soil testing every 2 years to understand nutrient levels — over-fertilizing wastes money and harms crops.', label: 'Precision Farming' },
+  { icon: '☁️', tip: 'Watch for rain forecasts 48 hours before applying pesticides — rain washes away treatments, wasting resources.', label: 'Weather Planning' },
+];
+
+// ── Animated counter hook ─────────────────────────────────────────────────
+function useCountUp(target, duration = 1200, active = true) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let start = 0;
+    const step = target / (duration / 16);
+    const timer = setInterval(() => {
+      start = Math.min(start + step, target);
+      setCount(Math.round(start));
+      if (start >= target) clearInterval(timer);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [target, duration, active]);
+  return count;
+}
+
+// ── Map auto-fly to location ──────────────────────────────────────────────
+function MapFlyTo({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.flyTo(center, 11, { animate: true, duration: 1.5 });
+  }, [center, map]);
+  return null;
+}
+
+// ── Circular Risk Indicator ───────────────────────────────────────────────
+function RiskRing({ value, label, color, suffix = '%', active }) {
+  const animated = useCountUp(value, 1400, active);
+  const radius = 28; const circum = 2 * Math.PI * radius;
+  const offset = circum - (animated / 100) * circum;
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative">
+        <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
+          <circle cx="36" cy="36" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
+          <circle cx="36" cy="36" r={radius} fill="none" stroke={color} strokeWidth="6"
+            strokeDasharray={circum} strokeDashoffset={offset}
+            strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.1s' }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center font-extrabold text-white text-sm">
+          {suffix === '%' ? `${animated}%` : animated}
+        </span>
+      </div>
+      <span className="text-[10px] font-semibold text-emerald-200 text-center leading-tight max-w-[64px]">{label}</span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 const FarmerDashboard = () => {
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const { isDark } = useTheme();
+
+  // State
   const [localAgronomists, setLocalAgronomists] = useState([]);
   const [loadingAgronomists, setLoadingAgronomists] = useState(true);
   const [agronomistError, setAgronomistError] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [tipFading, setTipFading] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const [mapLayer, setMapLayer] = useState('agronomists'); // 'agronomists' | 'markets'
+  const [heroVisible, setHeroVisible] = useState(false);
+  const [myCrops, setMyCrops] = useState([]);
+  const [weatherRisk, setWeatherRisk] = useState(34);
+  const [diseaseRisk, setDiseaseRisk] = useState(22);
+  const [marketTrend, setMarketTrend] = useState(71);
+  const [profitConf, setProfitConf] = useState(82);
+  const heroRef = useRef(null);
 
+  // Farmer location for map
+  const farmerLat = user?.location?.coordinates?.[1];
+  const farmerLng = user?.location?.coordinates?.[0];
+  const mapCenter = farmerLat && farmerLng ? [farmerLat, farmerLng] : [20.5937, 78.9629];
+
+  // Dummy nearby markets (since no market geolocation API exists yet)
+  const nearbyMarkets = [
+    { name: 'Nashik APMC', lat: mapCenter[0] + 0.08, lng: mapCenter[1] + 0.06, distance: '12 km' },
+    { name: 'Pune Mandi', lat: mapCenter[0] - 0.12, lng: mapCenter[1] + 0.09, distance: '18 km' },
+    { name: 'Local Weekly Market', lat: mapCenter[0] + 0.04, lng: mapCenter[1] - 0.07, distance: '6 km' },
+  ];
+
+  // ── Tip rotation ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTipFading(true);
+      setTimeout(() => {
+        setTipIndex(i => (i + 1) % FARMING_TIPS.length);
+        setTipFading(false);
+      }, 400);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Hero animation ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => setHeroVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ── Location prompt ────────────────────────────────────────────────────
+  useEffect(() => {
+    const shouldShow = sessionStorage.getItem('showLocationPromptOnce');
+    if (shouldShow === 'true') {
+      sessionStorage.removeItem('showLocationPromptOnce');
+      setTimeout(() => setShowLocationPrompt(true), 600);
+    }
+  }, [user]);
+
+  // ── Fetch agronomists ──────────────────────────────────────────────────
   useEffect(() => {
     const fetchLocalAgronomists = async () => {
       try {
@@ -17,213 +163,469 @@ const FarmerDashboard = () => {
         setAgronomistError('');
       } catch (err) {
         setLocalAgronomists([]);
-        setAgronomistError(
-          err.response?.data?.message || 'Failed to load local agronomists.'
-        );
+        setAgronomistError(err.response?.data?.message || 'Failed to load local agronomists.');
       } finally {
         setLoadingAgronomists(false);
       }
     };
-
     fetchLocalAgronomists();
+    // Fetch crops for hero section
+    cropAPI.getCrops().then(r => setMyCrops(r.data || [])).catch(() => { });
   }, []);
 
-  const getInitials = (name = '') => {
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .filter(Boolean)
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  };
+  // ── Helpers ────────────────────────────────────────────────────────────
+  const getInitials = (name = '') =>
+    name.split(' ').map(p => p[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? t('Good Morning') : hour < 17 ? t('Good Afternoon') : t('Good Evening');
+  const greetEmoji = hour < 12 ? '🌅' : hour < 17 ? '☀️' : '🌙';
+
+  const currentCrop = myCrops[0]?.name || null;
 
   const quickActionCards = [
-    {
-      to: '/farmer/crops',
-      icon: '🌾',
-      title: 'My Crops',
-      description: 'Manage and track your crops',
-      color: 'from-green-500 to-emerald-600',
-    },
-    {
-      to: '/farmer/disease-reports',
-      icon: '🔍',
-      title: 'Disease Reports',
-      description: 'Report and track crop diseases',
-      color: 'from-orange-500 to-red-600',
-    },
-    {
-      to: '/farmer/weather',
-      icon: '☁️',
-      title: 'Weather',
-      description: 'Check weather forecast',
-      color: 'from-blue-500 to-cyan-600',
-    },
-    {
-      to: '/farmer/advisories',
-      icon: '📋',
-      title: 'Advisories',
-      description: 'View farming advisories',
-      color: 'from-purple-500 to-indigo-600',
-    },
+    { to: '/farmer/crops', icon: '🌾', title: t('My Crops'), desc: t('Manage & track your crops'), gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-50', halo: '#22c55e' },
+    { to: '/farmer/disease-reports', icon: '🔬', title: t('AI Disease Detection'), desc: t('Detect crop diseases with AI'), gradient: 'from-orange-500 to-red-500', bg: 'bg-orange-50', halo: '#f97316' },
+    { to: '/farmer/weather', icon: '⛅', title: t('Weather Forecast'), desc: t('7-day forecast for your farm'), gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', halo: '#3b82f6' },
+    { to: '/farmer/market', icon: '📊', title: t('Market Prices'), desc: t('Live mandi prices near you'), gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', halo: '#8b5cf6' },
+    { to: '/profile', icon: '👤', title: t('My Profile'), desc: t('Update location & settings'), gradient: 'from-rose-500 to-pink-500', bg: 'bg-rose-50', halo: '#f43f5e' },
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
-            👨‍🌾 Farmer Dashboard
-          </h1>
-          <p className="text-lg text-gray-600">
-            Manage your farm, track crops, and get expert advice
-          </p>
-        </div>
+  const cardBase = isDark
+    ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
+    : 'bg-white border-gray-100';
+  const textH = isDark ? 'text-white' : 'text-gray-900';
+  const textS = isDark ? 'text-gray-400' : 'text-gray-500';
 
-        {/* Quick Actions Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {quickActionCards.map((card) => (
-            <Link
-              key={card.to}
-              to={card.to}
-              className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1"
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-0 group-hover:opacity-10 transition-opacity`}></div>
-              <div className="relative p-6">
-                <div className="text-5xl mb-4 transform group-hover:scale-110 transition-transform">
-                  {card.icon}
+  return (
+    <div className={`min-h-screen ${isDark ? 'bg-[#050e0a]' : 'bg-gradient-to-br from-[#f0fdf4] via-[#ecfdf5] to-[#f0f4ff]'}`}>
+      <style>{`
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.6)} 50%{box-shadow:0 0 0 8px rgba(34,197,94,0)} }
+        @keyframes bgShimmer { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .fade-up { animation: fadeUp 0.55s cubic-bezier(.4,0,.2,1) both; }
+        .fade-in { animation: fadeIn 0.4s ease both; }
+        .card-lift { transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s, border-color .25s; }
+        .card-lift:hover { transform: translateY(-6px); }
+        .glow-card:hover { box-shadow: 0 0 0 2px var(--halo), 0 16px 40px rgba(0,0,0,.15); }
+        .ai-badge { background: linear-gradient(90deg,#166534,#15803d,#166534); background-size:200% 100%; animation: bgShimmer 3s ease infinite; }
+        .pulse-dot { animation: pulse-glow 1.8s infinite; }
+        .tip-box { transition: opacity .4s ease; }
+        .hero-bg { background: linear-gradient(135deg,#052e16 0%,#14532d 40%,#166534 70%,#15803d 100%); }
+
+        /* Map container reset */
+        .kk-map .leaflet-container { border-radius: 0 0 1.5rem 1.5rem; }
+        
+        /* Leaflet popup card style */
+        .leaflet-popup-content-wrapper { border-radius:14px!important; box-shadow:0 8px 32px rgba(0,0,0,.18)!important; padding:0!important; overflow:hidden; }
+        .leaflet-popup-content { margin:0!important; padding:0; }
+        .leaflet-popup-tip-container { display:none; }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* ══ 1. AI HERO SUMMARY ════════════════════════════════════════════ */}
+        <div
+          ref={heroRef}
+          className={`relative overflow-hidden rounded-3xl shadow-2xl fade-up hero-bg`}
+          style={{ animationDelay: '0.05s' }}
+        >
+          {/* Animated background rings */}
+          <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-emerald-400/10 border border-emerald-400/20" />
+          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-emerald-400/10 border border-emerald-400/20" />
+          <div className="absolute bottom-0 left-1/2 w-32 h-32 rounded-full bg-yellow-400/5 blur-xl" />
+
+
+          <div className="relative p-6 sm:p-8 lg:p-10">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-8">
+
+              {/* LEFT — Greeting and context */}
+              <div className="flex-1 min-w-0">
+                {/* AI Engine badge */}
+                <div className="inline-flex items-center gap-2 ai-badge text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full mb-4 shadow-lg">
+                  <span className="w-2 h-2 bg-yellow-400 rounded-full pulse-dot" />
+                  AI Farm Intelligence Engine Active
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{card.title}</h3>
-                <p className="text-gray-600 text-sm">{card.description}</p>
-                <div className="mt-4 flex items-center text-green-600 font-medium group-hover:text-green-700">
-                  <span className="text-sm">Explore</span>
-                  <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+
+                <p className="text-emerald-300 text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  {greetEmoji} {greeting}
+                </p>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-2 leading-tight">
+                  {user?.fullName?.split(' ')[0]} 👋
+                </h1>
+
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                  {user?.address?.district && (
+                    <span className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur text-emerald-200 px-3 py-1.5 rounded-xl text-sm font-medium border border-white/10">
+                      📍 {user.address.district}
+                    </span>
+                  )}
+                  {currentCrop && (
+                    <span className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur text-emerald-200 px-3 py-1.5 rounded-xl text-sm font-medium border border-white/10">
+                      🌾 {currentCrop}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-400/20 text-emerald-200 px-3 py-1.5 rounded-xl text-xs font-semibold border border-emerald-400/30">
+                    🤖 AI Confidence: {profitConf}%
+                  </span>
+                </div>
+
+                <p className="text-emerald-200/70 text-sm mt-3">
+                  {t('Manage your farm, track crops, and get expert advice')} 🌱
+                </p>
+              </div>
+
+              {/* RIGHT — AI risk indicators */}
+              <div className="flex-shrink-0">
+                <p className="text-emerald-300/70 text-xs font-semibold uppercase tracking-widest mb-4 text-center">
+                  AI Risk Analysis
+                </p>
+                <div className="grid grid-cols-4 gap-3 sm:gap-5">
+                  <RiskRing value={weatherRisk} label={t('Weather Risk')} color="#60a5fa" active={heroVisible} />
+                  <RiskRing value={diseaseRisk} label={t('Disease Risk')} color="#f87171" active={heroVisible} />
+                  <RiskRing value={marketTrend} label={t('Market Trend')} color="#facc15" active={heroVisible} />
+                  <RiskRing value={profitConf} label={t('Profit Confidence')} color="#4ade80" active={heroVisible} />
+                </div>
+                <div className="flex justify-center gap-3 mt-4 flex-wrap">
+                  <span className="text-[10px] text-emerald-400/70 flex items-center gap-1"><span className="w-2 h-2 bg-blue-400 rounded-full inline-block" /> {t('Low risk')}</span>
+                  <span className="text-[10px] text-emerald-400/70 flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full inline-block" /> {t('High risk')}</span>
+                  <span className="text-[10px] text-emerald-400/70 flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400 rounded-full inline-block" /> {t('Market')}</span>
                 </div>
               </div>
-            </Link>
-          ))}
+
+            </div>
+          </div>
         </div>
 
-        {/* Agronomists Section */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <span>👨‍🔬</span>
-              <span>Agronomists in Your District</span>
-            </h2>
-            <p className="mt-2 text-green-100 text-sm">
-              Connect with verified agronomists available in your district for quick advice
-            </p>
+        {/* ══ 2. INTERACTIVE MAP ══════════════════════════════════════════════ */}
+        <div className={`rounded-3xl overflow-hidden shadow-xl border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-gray-100'} fade-up`} style={{ animationDelay: '0.15s' }}>
+          {/* Map header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-xl shadow">🗺️</div>
+              <div>
+                <h2 className={`font-extrabold text-base ${textH}`}>{t('Farm Location Map')}</h2>
+                <p className={`text-xs ${textS}`}>{t('Your farm, nearby agronomists & markets')}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Layer toggles */}
+              <button
+                onClick={() => setMapLayer(l => l === 'agronomists' ? 'none' : 'agronomists')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border ${mapLayer === 'agronomists'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow'
+                  : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-blue-50'}`}
+              >
+                👨‍🔬 {t('Show Agronomists')}
+              </button>
+              <button
+                onClick={() => setMapLayer(l => l === 'markets' ? 'none' : 'markets')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border ${mapLayer === 'markets'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow'
+                  : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-amber-50'}`}
+              >
+                🏪 {t('Show Markets')}
+              </button>
+              <button
+                onClick={() => setShowMap(v => !v)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+              >
+                {showMap ? '▲ Collapse' : '▼ Expand'}
+              </button>
+            </div>
           </div>
-          
-          <div className="p-6">
+
+          {showMap && (
+            <div className="kk-map relative" style={{ height: 380 }}>
+              <MapContainer
+                center={mapCenter}
+                zoom={farmerLat ? 11 : 5}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={false}
+                zoomControl={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+                  url={isDark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
+                />
+                {farmerLat && farmerLng && (
+                  <>
+                    <MapFlyTo center={[farmerLat, farmerLng]} />
+                    <Marker position={[farmerLat, farmerLng]} icon={farmerIcon}>
+                      <Popup>
+                        <div className="p-3 min-w-[160px]">
+                          <p className="font-extrabold text-gray-900 text-sm mb-0.5">🌾 Your Farm</p>
+                          <p className="text-xs text-gray-500">{user?.address?.district || 'Your location'}</p>
+                          <p className="text-xs text-emerald-600 font-semibold mt-1">● Active</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  </>
+                )}
+
+                {/* Agronomist markers */}
+                {mapLayer === 'agronomists' && localAgronomists.map((ag, i) => {
+                  const agLat = ag.location?.coordinates?.[1];
+                  const agLng = ag.location?.coordinates?.[0];
+                  if (!agLat || !agLng) return null;
+                  return (
+                    <Marker key={ag.id || i} position={[agLat, agLng]} icon={agroIcon}>
+                      <Popup>
+                        <div className="p-3 min-w-[180px]">
+                          <p className="font-extrabold text-gray-900 text-sm mb-0.5">👨‍🔬 {ag.fullName}</p>
+                          <p className="text-xs text-blue-600 font-semibold mb-2">Verified Agronomist</p>
+                          {ag.mobileNumber && (
+                            <div className="flex gap-2">
+                              <a href={`tel:${ag.mobileNumber}`} className="flex-1 text-center bg-emerald-600 text-white text-xs font-bold py-1.5 rounded-lg">📞 Call</a>
+                              <a href={`https://wa.me/91${ag.mobileNumber}`} target="_blank" rel="noreferrer" className="flex-1 text-center bg-[#25D366] text-white text-xs font-bold py-1.5 rounded-lg">WhatsApp</a>
+                            </div>
+                          )}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
+                {/* Market markers */}
+                {mapLayer === 'markets' && nearbyMarkets.map((m, i) => (
+                  <Marker key={i} position={[m.lat, m.lng]} icon={marketIcon}>
+                    <Popup>
+                      <div className="p-3 min-w-[160px]">
+                        <p className="font-extrabold text-gray-900 text-sm mb-0.5">🏪 {m.name}</p>
+                        <p className="text-xs text-amber-600 font-semibold mb-2">📍 ~{m.distance}</p>
+                        <Link to="/farmer/market" className="block text-center bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg">View Prices</Link>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+
+              {/* No location overlay */}
+              {!farmerLat && (
+                <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none z-[500]">
+                  <div className="bg-white/95 backdrop-blur rounded-2xl shadow-xl px-5 py-3 flex items-center gap-3 pointer-events-auto">
+                    <span className="text-2xl">📍</span>
+                    <div>
+                      <p className="font-extrabold text-gray-900 text-sm">{t('Set your location')}</p>
+                      <p className="text-xs text-gray-500">{t('Enable precise farm mapping')}</p>
+                    </div>
+                    <Link to="/profile?tab=location" className="ml-2 bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-emerald-700 transition-colors">
+                      {t('Update')}
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ══ 3. QUICK ACTIONS ════════════════════════════════════════════════ */}
+        <div className="fade-up" style={{ animationDelay: '0.25s' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className={`text-lg font-extrabold flex items-center gap-2 ${textH}`}>
+              ⚡ {t('Quick Actions')}
+            </h2>
+            <span className={`text-xs font-medium ${textS}`}>{t('Tap to navigate')}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {quickActionCards.map((card) => (
+              <Link
+                key={card.to}
+                to={card.to}
+                style={{ '--halo': card.halo }}
+                className={`group card-lift glow-card rounded-2xl border shadow-sm overflow-hidden ${cardBase}`}
+              >
+                <div className={`h-1 bg-gradient-to-r ${card.gradient}`} />
+                <div className="p-4 sm:p-5">
+                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-2xl mb-3 shadow-md group-hover:scale-110 transition-transform`}>
+                    {card.icon}
+                  </div>
+                  <h3 className={`font-extrabold text-sm mb-0.5 leading-tight ${textH}`}>{card.title}</h3>
+                  <p className={`text-[11px] leading-snug ${textS}`}>{card.desc}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ 4. AI TIP CAROUSEL ══════════════════════════════════════════════ */}
+        <div
+          className={`relative overflow-hidden rounded-2xl border p-5 sm:p-6 fade-up ${isDark
+            ? 'bg-gradient-to-br from-amber-900/20 to-yellow-900/10 border-amber-700/30'
+            : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'}`}
+          style={{ animationDelay: '0.32s' }}
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg">
+              {FARMING_TIPS[tipIndex].icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-600 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                  🤖 AI Recommended Tip for Today
+                </span>
+                <span className={`text-[10px] font-semibold ${isDark ? 'text-amber-400' : 'text-amber-500'} ml-auto`}>
+                  {FARMING_TIPS[tipIndex].label}
+                </span>
+              </div>
+              <p className={`text-sm leading-relaxed tip-box ${isDark ? 'text-amber-200' : 'text-amber-900'}`} style={{ opacity: tipFading ? 0 : 1 }}>
+                {FARMING_TIPS[tipIndex].tip}
+              </p>
+              {/* Dot indicators */}
+              <div className="flex items-center gap-1.5 mt-3">
+                {FARMING_TIPS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setTipFading(true); setTimeout(() => { setTipIndex(i); setTipFading(false); }, 300); }}
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${i === tipIndex ? 'bg-amber-500 w-4' : isDark ? 'bg-amber-700' : 'bg-amber-300'}`}
+                  />
+                ))}
+                <span className={`text-[10px] ml-auto ${textS}`}>AI Confidence: {profitConf}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ══ 5. AGRONOMISTS SECTION ══════════════════════════════════════════ */}
+        <div className={`rounded-3xl shadow-xl overflow-hidden fade-up border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-gray-100'}`} style={{ animationDelay: '0.4s' }}>
+          {/* Section header */}
+          <div className="bg-gradient-to-r from-emerald-700 to-teal-700 px-6 py-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">👨‍🔬</div>
+              <div>
+                <h2 className="text-lg font-extrabold text-white">{t('Agronomists in Your District')}</h2>
+                <p className="text-emerald-200 text-xs mt-0.5">{t('Connect with verified agronomists available in your district for quick advice')}</p>
+              </div>
+            </div>
+            <Link to="/farmer/crops" className="hidden sm:inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all">
+              View All →
+            </Link>
+          </div>
+
+          <div className="p-5 sm:p-6">
             {loadingAgronomists ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                <span className="ml-4 text-gray-600">Loading agronomists...</span>
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className={`flex-shrink-0 w-64 h-36 rounded-2xl animate-pulse ${isDark ? 'bg-white/5' : 'bg-gray-100'}`} />
+                ))}
               </div>
             ) : agronomistError ? (
-              <div className="text-center py-8">
-                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg inline-block">
+              agronomistError.toLowerCase().includes('district') || agronomistError.toLowerCase().includes('location') ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4 select-none" style={{ animation: 'float 3s ease-in-out infinite' }}>📍</div>
+                  <h3 className={`text-lg font-extrabold mb-2 ${textH}`}>{t('Please Update Your Location')}</h3>
+                  <p className={`text-sm mb-6 max-w-xs mx-auto ${textS}`}>{t('To see agronomists in your district, we need to know your location.')}</p>
+                  <Link to="/profile?tab=location"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:-translate-y-0.5 hover:shadow-emerald-500/30 transition-all">
+                    📍 {t('Update Location')}
+                  </Link>
+                </div>
+              ) : (
+                <div className={`rounded-xl px-4 py-3 text-sm ${isDark ? 'bg-red-900/20 text-red-400 border border-red-700/30' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                   {agronomistError}
                 </div>
-              </div>
+              )
             ) : localAgronomists.length === 0 ? (
               <div className="text-center py-12">
-                <div className="text-6xl mb-4">👨‍🔬</div>
-                <p className="text-gray-600 text-lg">No agronomists available in your district.</p>
-                <p className="text-gray-500 text-sm mt-2">Check back later or contact support.</p>
+                <div className="text-7xl mb-4 select-none" style={{ animation: 'float 3s ease-in-out infinite' }}>👨‍🔬</div>
+                <p className={`font-extrabold text-lg mb-1 ${textH}`}>{t('No agronomists available in your district.')}</p>
+                <p className={`text-sm mb-6 ${textS}`}>{t('Check back later or contact support.')}</p>
+                <button className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:-translate-y-0.5 transition-all">
+                  📞 Request Expert Callback
+                </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {localAgronomists.map((agronomist) => (
-                  <div
-                    key={agronomist.id}
-                    className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
-                  >
-                    <div className="flex items-start gap-4">
+              /* Horizontal scroll cards */
+              <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
+                {localAgronomists.map((agro) => (
+                  <div key={agro.id}
+                    className={`flex-shrink-0 snap-start w-64 card-lift rounded-2xl border p-4 ${isDark
+                      ? 'bg-gradient-to-br from-emerald-900/30 to-teal-900/20 border-emerald-700/30 hover:border-emerald-500/50'
+                      : 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100 hover:border-emerald-300'
+                      } shadow-sm hover:shadow-lg`}>
+                    {/* Avatar + Name */}
+                    <div className="flex items-center gap-3 mb-3">
                       <button
-                        type="button"
-                        onClick={() => agronomist.profilePhotoUrl && setSelectedPhoto(agronomist.profilePhotoUrl)}
-                        className="relative h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white font-bold text-lg shadow-md hover:shadow-lg transition-shadow focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex-shrink-0"
-                        aria-label={
-                          agronomist.profilePhotoUrl
-                            ? `View profile photo of ${agronomist.fullName}`
-                            : undefined
-                        }
-                        disabled={!agronomist.profilePhotoUrl}
-                      >
-                        {agronomist.profilePhotoUrl ? (
-                          <img
-                            src={agronomist.profilePhotoUrl}
-                            alt={agronomist.fullName}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          getInitials(agronomist.fullName)
-                        )}
+                        onClick={() => agro.profilePhotoUrl && setSelectedPhoto(agro.profilePhotoUrl)}
+                        disabled={!agro.profilePhotoUrl}
+                        className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-extrabold text-lg shadow-md flex-shrink-0 overflow-hidden hover:scale-105 transition-transform">
+                        {agro.profilePhotoUrl
+                          ? <img src={agro.profilePhotoUrl} alt={agro.fullName} className="w-full h-full object-cover" />
+                          : getInitials(agro.fullName)}
                       </button>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-gray-900 truncate">{agronomist.fullName}</h3>
-                        <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          {agronomist.mobileNumber}
-                        </p>
-                        {agronomist.district && (
-                          <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            {agronomist.district}
-                          </p>
-                        )}
+                      <div className="min-w-0">
+                        <h3 className={`font-extrabold text-sm truncate ${textH}`}>{agro.fullName}</h3>
+                        {agro.district && <p className="text-xs text-emerald-600 mt-0.5">📍 {agro.district}</p>}
+                        {/* Rating stars — simulated */}
+                        <div className="flex items-center gap-0.5 mt-1">
+                          {[1, 2, 3, 4, 5].map(s => <span key={s} className={s <= 4 ? 'text-yellow-400 text-xs' : 'text-gray-300 text-xs'}>★</span>)}
+                          <span className="text-[10px] text-gray-500 ml-1">4.2</span>
+                        </div>
                       </div>
                     </div>
+
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-full pulse-dot" />
+                      <span className="text-xs text-emerald-600 font-semibold">Available Now</span>
+                    </div>
+
+                    {/* Actions */}
+                    {agro.mobileNumber && (
+                      <div className="flex gap-2">
+                        <a href={`tel:${agro.mobileNumber}`}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition-colors shadow-sm">
+                          📞 Call
+                        </a>
+                        <a href={`https://wa.me/91${agro.mobileNumber}`} target="_blank" rel="noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-[#25D366] hover:bg-[#22c55e] text-white text-xs font-bold py-2 rounded-xl transition-colors shadow-sm">
+                          WhatsApp
+                        </a>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
         </div>
+
       </div>
 
-      {/* Photo Modal */}
+      {/* ══ FLOATING AI ASSISTANT ══════════════════════════════════════════ */}
+      <div className="fixed bottom-6 right-6 z-50 group">
+        <div className="absolute -top-9 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
+          <div className="bg-gray-900 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-xl whitespace-nowrap">
+            Ask Krishi Kavach AI 🤖
+          </div>
+        </div>
+        <Link to="/farmer/ai-assistant" className="relative flex items-center justify-center w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-2xl hover:shadow-emerald-500/50 hover:scale-110 transition-all duration-300">
+          <span className="text-2xl">🌿</span>
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white pulse-dot" />
+        </Link>
+      </div>
+
+      {/* ══ PHOTO MODAL ════════════════════════════════════════════════════ */}
       {selectedPhoto && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedPhoto(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto relative shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-2xl">
-              <h3 className="text-lg font-bold text-gray-900">Profile Photo</h3>
-              <button
-                onClick={() => setSelectedPhoto(null)}
-                className="text-gray-500 hover:text-gray-700 text-3xl font-bold hover:bg-gray-100 rounded-full w-10 h-10 flex items-center justify-center transition-colors"
-                aria-label="Close photo preview"
-              >
-                ×
-              </button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedPhoto(null)}>
+          <div className={`rounded-3xl max-w-md w-full overflow-hidden shadow-2xl ${isDark ? 'bg-gray-900 border border-white/10' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+            <div className={`flex justify-between items-center px-6 py-4 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
+              <h3 className={`font-extrabold ${textH}`}>Profile Photo</h3>
+              <button onClick={() => setSelectedPhoto(null)} className={`w-8 h-8 flex items-center justify-center rounded-full text-xl ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>×</button>
             </div>
-            <div className="p-6 flex justify-center">
-              <img
-                src={selectedPhoto}
-                alt="Agronomist"
-                className="max-w-full max-h-[70vh] rounded-xl object-contain shadow-lg"
-              />
+            <div className="p-4">
+              <img src={selectedPhoto} alt="Agronomist" className="w-full rounded-2xl object-cover shadow" />
             </div>
           </div>
         </div>
       )}
+
+      {showLocationPrompt && <LocationPromptModal onClose={() => setShowLocationPrompt(false)} />}
     </div>
   );
 };

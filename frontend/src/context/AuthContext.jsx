@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     const storedToken = localStorage.getItem('accessToken');
-    
+
     if (storedUser && storedToken) {
       try {
         setUser(JSON.parse(storedUser));
@@ -36,12 +36,19 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.login({ mobileNumber, password });
       const { accessToken, refreshToken, user: userData } = response.data;
-      
+
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
-      
+
+      // Set one-shot session flags — consumed after first dashboard render.
+      // sessionStorage clears automatically when the tab/browser is closed.
+      sessionStorage.setItem('showLanguageSelectOnce', 'true');
+      if (userData.role === 'farmer') {
+        sessionStorage.setItem('showLocationPromptOnce', 'true');
+      }
+
       return { success: true };
     } catch (error) {
       return {

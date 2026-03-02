@@ -84,6 +84,7 @@ export const authAPI = {
 export const userAPI = {
   getProfile: () => api.get('/users/me'),
   updateProfile: (data) => api.put('/users/update', data),
+  updateLocation: (data) => api.put('/users/update-location', data),
   changePassword: (data) => api.put('/users/change-password', data),
   uploadPhoto: (file) => {
     const formData = new FormData();
@@ -152,14 +153,46 @@ export const weatherAPI = {
   getWeather: () => api.get('/weather'),
 };
 
-// Advisory APIs
-export const advisoryAPI = {
-  getAdvisories: () => api.get('/advisories'),
+// Market Price APIs
+export const marketAPI = {
+  // Search prices from DB with filters
+  searchPrices: (params) => api.get('/market/search', { params }),
+  // Latest price per district for a commodity
+  getLatestPrices: (commodity, state) => api.get('/market/latest', { params: { commodity, state } }),
+  // Get price history for charting
+  getPriceHistory: (commodity, params) => api.get(`/market/history/${encodeURIComponent(commodity)}`, { params }),
+  // 7-day price prediction
+  getPricePrediction: (commodity, district) => api.get(`/market/predict/${encodeURIComponent(commodity)}`, { params: { district } }),
+  // Get latest prices for farmer's own crops
+  getMyCropPrices: () => api.get('/market/my-crops'),
+  // Get distinct states/commodities/districts for dropdowns
+  getFilters: () => api.get('/market/filters'),
+  // Get DB stats
+  getStats: () => api.get('/market/stats'),
+  // Manually trigger scrape cycle
+  triggerScrape: () => api.post('/market/scrape'),
+  // Legacy alias
+  triggerFetch: () => api.post('/market/scrape'),
 };
+
 
 // ML Server APIs
 export const mlServerAPI = {
   getStatus: () => api.get('/ml-server/status'),
+};
+
+// Groq AI — Crop Disease Info & Chatbot APIs
+export const geminiAPI = {
+  getCropDiseaseInfo: (cropName, diseaseName, language = 'en') =>
+    api.post('/disease-info/crop-info', { cropName, diseaseName, language }),
+  chat: (messages, context = '', language = 'en') =>
+    api.post('/disease-info/chat', { messages, context, language }),
+  getCropManagementInfo: (cropName, area, areaUnit = 'acres', language = 'en') =>
+    api.post('/disease-info/crop-management', { cropName, area, areaUnit, language }),
+  getWeatherCropImpact: (cropName, currentWeather, dailyForecast, language = 'en') =>
+    api.post('/disease-info/weather-crop-impact', { cropName, currentWeather, dailyForecast, language }),
+  getMarketPrices: (commodity, district, state) =>
+    api.post('/disease-info/market-prices', { commodity, district, state }),
 };
 
 // Media APIs

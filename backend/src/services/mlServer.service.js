@@ -1,78 +1,62 @@
 import axios from "axios";
 
-// 🌍 ML API running on Render
-const ML_SERVER_URL = process.env.ML_SERVER_URL || 
-  "https://krushi-ml-service.onrender.com";
+// 🏠 Local ML server (FastAPI running crop_project/app.py on port 8000)
+const ML_SERVER_URL = process.env.ML_SERVER_URL || "http://localhost:8000";
 
 // ----------------------------------------------------------------------
-// 1️⃣ Check if ML Server on Render is awake
+// 1️⃣ Check if local ML server is alive
 // ----------------------------------------------------------------------
 export const checkMLServerStatus = async () => {
   try {
-    const res = await axios.get(`${ML_SERVER_URL}/`, {
-      timeout: 15000  // 🔥 allow Render cold start (15 seconds)
-    });
-
-    if (res.status === 200) {
-      const status = String(res.data?.status || "").toLowerCase();
-      return status.includes("running");
-    }
-
-    return false;
-  } catch (err) {
+    const res = await axios.get(`${ML_SERVER_URL}/health`, { timeout: 5000 });
+    const status = String(res.data?.status || "").toLowerCase();
+    return status.includes("running");
+  } catch {
     return false;
   }
 };
 
-
 // ----------------------------------------------------------------------
-// 2️⃣ Wait until Render wakes from sleep (cold start handler)
+// 2️⃣ Wait for local ML server to start (short timeout — local is fast)
 // ----------------------------------------------------------------------
-export const waitForMLServer = async (maxWait = 45000) => {
+export const waitForMLServer = async (maxWait = 10000) => {
   const start = Date.now();
-
   while (Date.now() - start < maxWait) {
     const alive = await checkMLServerStatus();
     if (alive) return true;
-
-    await new Promise(r => setTimeout(r, 2000)); // 2 sec interval
+    await new Promise(r => setTimeout(r, 1000));
   }
-
   return false;
 };
 
-
 // ----------------------------------------------------------------------
-// 3️⃣ "Start" ML server on Render
-//    (Actually → we just ping it until it wakes up)
+// 3️⃣ "Start" — just verify the local server is reachable
 // ----------------------------------------------------------------------
 export const startMLServer = async () => {
-  console.log("Waking ML server on Render...");
-
-  const ready = await waitForMLServer(45000);  // wait up to 45s
-
+  console.log("Checking local ML server at", ML_SERVER_URL);
+  const ready = await waitForMLServer(10000);
   if (!ready) {
-    throw new Error("ML server not waking up (Render cold start timeout)");
+    throw new Error(
+      "Local ML server is not running. " +
+      "Please start it with: cd crop_project && python app.py"
+    );
   }
-
-  console.log("ML server is awake.");
+  console.log("Local ML server is ready.");
 };
 
-
 // ----------------------------------------------------------------------
-// 4️⃣ Predict function (Node → Render ML → Node → Frontend)
+// 4️⃣ Predict (Node → local FastAPI → result back to frontend)
 // ----------------------------------------------------------------------
 export const runPrediction = async (imageBase64) => {
   try {
     const res = await axios.post(
       `${ML_SERVER_URL}/predict`,
       { image: imageBase64 },
-      { timeout: 20000 }
+      { timeout: 30000 }
     );
-
     return res.data;
   } catch (err) {
     console.error("Prediction error:", err.message);
-    throw new Error("Failed to get prediction from ML server");
+    throw new Error("Failed to get prediction from local ML server");
   }
 };

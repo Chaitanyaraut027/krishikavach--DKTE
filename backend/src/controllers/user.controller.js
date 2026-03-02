@@ -24,17 +24,55 @@ export const getProfile = asyncHandler(async (req, res) => {
 // --- Update Personal Info ---
 export const updateProfile = asyncHandler(async (req, res) => {
   const { fullName, district, taluka, language } = req.body;
-  
+
   const user = await User.findByIdAndUpdate(req.user.id, {
     fullName,
     address: { district, taluka },
     language,
   }, { new: true }).populate('profilePhoto');
-  
+
   if (!user) {
     return res.status(404).json({ message: 'User not found' });
   }
   res.json(sanitizeUser(user));
+});
+
+// --- Update Location ---
+export const updateLocation = asyncHandler(async (req, res) => {
+  const { longitude, latitude, district, taluka } = req.body;
+
+  if (!longitude || !latitude) {
+    return res.status(400).json({ message: 'Longitude and latitude are required' });
+  }
+
+  const locationObject = {
+    type: 'Point',
+    coordinates: [parseFloat(longitude), parseFloat(latitude)],
+  };
+
+  const updateData = {
+    location: locationObject,
+  };
+
+  // Update address if provided
+  if (district || taluka) {
+    updateData.address = { district, taluka };
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    updateData,
+    { new: true }
+  ).populate('profilePhoto');
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  res.json({
+    message: 'Location updated successfully',
+    user: sanitizeUser(user)
+  });
 });
 
 // --- Upload Profile Picture ---
@@ -68,8 +106,8 @@ export const uploadProfilePhoto = asyncHandler(async (req, res) => {
     result = await uploadToCloudinary(req.file, 'profile_photos');
   } catch (uploadError) {
     console.error('Cloudinary upload failed:', uploadError);
-    return res.status(500).json({ 
-      message: uploadError.message || 'Failed to upload photo to Cloudinary. Please check your network connection and Cloudinary configuration.' 
+    return res.status(500).json({
+      message: uploadError.message || 'Failed to upload photo to Cloudinary. Please check your network connection and Cloudinary configuration.'
     });
   }
 
@@ -128,12 +166,12 @@ export const deleteProfilePhoto = asyncHandler(async (req, res) => {
 // --- Change Password ---
 export const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-  
+
   const user = await User.findById(req.user.id);
   if (!user) {
     return res.status(404).json({ message: 'User not found' });
   }
-  
+
   const isMatch = await user.matchPassword(currentPassword);
   if (!isMatch) return res.status(400).json({ message: 'Current password incorrect' });
 

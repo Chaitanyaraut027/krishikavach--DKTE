@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
+import LocationUpdate from '../components/LocationUpdate';
+import { useLanguage } from '../context/LanguageContext';
 
 const UserProfile = () => {
   const { user, updateUser } = useAuth();
+  const { lang, selectLanguage, SUPPORTED_LANGUAGES } = useLanguage();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,6 +30,13 @@ const UserProfile = () => {
     new: false,
     confirm: false,
   });
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['profile', 'location', 'password', 'language'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchProfile();
@@ -95,10 +107,10 @@ const UserProfile = () => {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     // Reset file input
     e.target.value = '';
-    
+
     try {
       const response = await userAPI.uploadPhoto(file);
       if (response.data?.user) {
@@ -444,10 +456,22 @@ const UserProfile = () => {
             Profile
           </button>
           <button
+            onClick={() => setActiveTab('location')}
+            className={`tab-button ${activeTab === 'location' ? 'active' : ''}`}
+          >
+            Location
+          </button>
+          <button
             onClick={() => setActiveTab('password')}
             className={`tab-button ${activeTab === 'password' ? 'active' : ''}`}
           >
             Change Password
+          </button>
+          <button
+            onClick={() => setActiveTab('language')}
+            className={`tab-button ${activeTab === 'language' ? 'active' : ''}`}
+          >
+            🌐 Language
           </button>
         </div>
 
@@ -547,6 +571,16 @@ const UserProfile = () => {
                 </div>
               </form>
             </div>
+          )}
+
+          {activeTab === 'location' && (
+            <LocationUpdate
+              currentLocation={profile?.location}
+              onLocationUpdated={(updatedUser) => {
+                setProfile(updatedUser);
+                updateUser(updatedUser);
+              }}
+            />
           )}
 
           {activeTab === 'password' && (
@@ -650,6 +684,60 @@ const UserProfile = () => {
                 </button>
               </div>
             </form>
+          )}
+
+          {activeTab === 'language' && (
+            <div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#2d5016', marginBottom: '20px' }}>
+                🌐 Language Settings
+              </h2>
+              <p style={{ color: '#555', marginBottom: '24px', fontSize: '0.95rem' }}>
+                Select your preferred language. The entire interface will be translated.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                {SUPPORTED_LANGUAGES.map((language) => (
+                  <button
+                    key={language.code}
+                    onClick={() => selectLanguage(language.code)}
+                    style={{
+                      padding: '20px',
+                      borderRadius: '12px',
+                      border: `2px solid ${lang === language.code ? '#16a34a' : '#e5e7eb'}`,
+                      background: lang === language.code
+                        ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                        : '#fff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                      boxShadow: lang === language.code
+                        ? '0 4px 12px rgba(22,163,74,0.2)'
+                        : '0 1px 4px rgba(0,0,0,0.06)',
+                      transform: lang === language.code ? 'translateY(-2px)' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>{language.flag}</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a' }}>{language.nativeName}</div>
+                    <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '4px' }}>{language.name}</div>
+                    {lang === language.code && (
+                      <div style={{
+                        marginTop: '10px',
+                        fontSize: '0.8rem',
+                        color: '#16a34a',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}>
+                        ✓ Currently active
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p style={{ marginTop: '20px', fontSize: '0.82rem', color: '#9ca3af' }}>
+                Translations are cached locally for faster performance across sessions.
+              </p>
+            </div>
           )}
         </div>
       </div>

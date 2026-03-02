@@ -38,10 +38,32 @@ export const register = asyncHandler(async (req, res) => {
     });
   }
 
+  // Default role to 'farmer' if not provided
+  const userRole = role || 'farmer';
+
   // Check if user already exists
   const existing = await User.findOne({ mobileNumber });
   if (existing) {
     return res.status(400).json({ message: 'Mobile number is already registered.' });
+  }
+
+  // Validate agronomist-specific required fields
+  if (userRole === 'agronomist') {
+    if (!qualification || !experience) {
+      return res.status(400).json({ 
+        message: 'Qualification and experience are required for agronomist registration.' 
+      });
+    }
+    if (!longitude || !latitude) {
+      return res.status(400).json({ 
+        message: 'Location is required for agronomist registration. Please select your location on the map.' 
+      });
+    }
+    if (!req.file) {
+      return res.status(400).json({ 
+        message: 'ID proof document is required for agronomist registration.' 
+      });
+    }
   }
 
   // Build location object if provided
@@ -53,24 +75,19 @@ export const register = asyncHandler(async (req, res) => {
     };
   }
 
-  // ✅ FIX: Use `passwordHash` but hash plain password via model hook
+  // Create user with basic info
   const user = await User.create({
     fullName,
     mobileNumber,
-    passwordHash: password, // ✅ FIX: this will trigger the pre-save hashing
-    role,
-    language,
+    passwordHash: password, // Will be hashed by pre-save hook
+    role: userRole,
+    language: language || 'en',
     location: locationObject,
     address: { district, taluka },
   });
 
   // --- AGRONOMIST REGISTRATION LOGIC ---
-  if (role === 'agronomist') {
-    if (!req.file) {
-      await User.findByIdAndDelete(user._id);
-      return res.status(400).json({ message: 'ID proof document is required for agronomist registration.' });
-    }
-
+  if (userRole === 'agronomist') {
     try {
       const result = await uploadToCloudinary(req.file, 'id_proofs');
       const idProofMedia = await Media.create({
@@ -96,7 +113,7 @@ export const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message:
-      role === 'agronomist'
+      userRole === 'agronomist'
         ? 'Registration successful. Your profile is now pending verification.'
         : 'Registered successfully.',
     user: sanitizeUser(user),

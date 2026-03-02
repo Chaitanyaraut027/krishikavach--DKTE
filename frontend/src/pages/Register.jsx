@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTranslation } from "react-i18next";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -27,6 +28,15 @@ function MapClickHandler({ onMapClick }) {
   return null;
 }
 
+// Fly map to a position programmatically (used after GPS fix)
+function FlyToLocation({ position }) {
+  const map = useMap();
+  if (position) {
+    map.flyTo(position, 14, { animate: true, duration: 1.2 });
+  }
+  return null;
+}
+
 const Register = () => {
   const [formData, setFormData] = useState({
     fullName: "",
@@ -48,21 +58,33 @@ const Register = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState("");
   const { register } = useAuth();
   const navigate = useNavigate();
   const mapClickRef = useRef(false);
-  const { t } = useTranslation();
+  const { t } = useLanguage();
+  const { isDark } = useTheme();
 
   const defaultCenter = [20.5937, 78.9629];
   const defaultZoom = 5;
 
+  // Shared class for all form inputs / selects
+  const inputClass = `w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors
+    ${isDark
+      ? 'bg-white/5 border-white/20 text-white placeholder-white/30'
+      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+    }`;
+
+  const labelClass = `block text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`;
+
   // ----------------------- VALIDATE MOBILE -----------------------
   const validateMobile = (value) => {
     const cleaned = value.replace(/\D/g, "");
-    if (!cleaned) return t('register.mobileRequired');
-    if (cleaned.length !== 10) return t('register.mobileLength');
+    if (!cleaned) return t('Mobile number is required');
+    if (cleaned.length !== 10) return t('Mobile number must be exactly 10 digits');
     if (!/^[6-9]\d{9}$/.test(cleaned))
-      return t('register.mobileFormat');
+      return t('Must start with 6, 7, 8, or 9 and be 10 digits');
     return "";
   };
 
@@ -75,27 +97,76 @@ const Register = () => {
   };
 
   // ----------------------- REVERSE GEOCODING -----------------------
+  // For India, Nominatim address hierarchy:
+  //   admin_level 4  = State         → address.state
+  //   admin_level 5  = District      → address.state_district  (most reliable)
+  //   admin_level 6  = Taluka/Tehsil → address.county
+  //   admin_level 7  = Town/City
+  //   address.city / address.town / address.village = local name
   const reverseGeocode = async (lat, lng) => {
     try {
       setLocationLoading(true);
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`;
 
-      const res = await fetch(url);
+      // Use zoom=14 for street-level accuracy, and request all address fields
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1&namedetails=1&accept-language=en`;
+      const res = await fetch(url, {
+        headers: { "Accept-Language": "en" },
+      });
       const data = await res.json();
 
       if (data.address) {
+        const a = data.address;
+
+        // ── District ──────────────────────────────────────────────────
+        // In Indian Nominatim data:
+        //   state_district → actual revenue district (most accurate)
+        //   county         → sometimes used for district in some states
         const district =
-          data.address.state_district ||
-          data.address.county ||
-          data.address.state ||
+          a.state_district ||   // e.g. "Pune", "Nashik", "Nagpur"
+          a.county ||           // fallback for some states
+          a.district ||         // direct field when present
           "";
 
-        const taluka =
-          data.address.suburb ||
-          data.address.town ||
-          data.address.city ||
-          data.address.village ||
+        // ── Taluka ────────────────────────────────────────────────────
+        // Taluka/Tehsil is typically admin_level 6 → mapped to:
+        //   county (when state_district is present as district)
+        //   city_district / municipality / suburb / town
+        let taluka =
+          (a.state_district ? a.county : "") || // if district came from state_district, county = taluka
+          a.city_district ||
+          a.municipality ||
+          a.suburb ||
+          a.town ||
+          a.city ||
+          a.village ||
+          a.hamlet ||
           "";
+
+        // Avoid taluka == district (deduplicate)
+        if (taluka && taluka.toLowerCase() === district.toLowerCase()) {
+          taluka =
+            a.suburb ||
+            a.town ||
+            a.city ||
+            a.village ||
+            a.hamlet ||
+            "";
+        }
+
+        // Clean up: remove redundant state name from district/taluka
+        const state = a.state || "";
+        if (district.toLowerCase() === state.toLowerCase()) {
+          // district resolved to state — try harder
+          const betterDistrict = a.county || a.city_district || "";
+          if (betterDistrict) {
+            setFormData((prev) => ({
+              ...prev,
+              district: betterDistrict,
+              taluka: taluka || prev.taluka,
+            }));
+            return;
+          }
+        }
 
         setFormData((prev) => ({
           ...prev,
@@ -104,11 +175,12 @@ const Register = () => {
         }));
       }
     } catch (err) {
-      console.log("Geocoding error:", err);
+      console.error("Geocoding error:", err);
     } finally {
       setLocationLoading(false);
     }
   };
+
 
   const handleMapClick = (lat, lng) => {
     mapClickRef.current = true;
@@ -124,6 +196,38 @@ const Register = () => {
     setTimeout(() => {
       mapClickRef.current = false;
     }, 150);
+  };
+
+  // Handle GPS — Use My Current Location
+  const [flyTo, setFlyTo] = useState(null);
+
+  const handleUseMyLocation = () => {
+    setGpsError("");
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation is not supported by your browser.");
+      return;
+    }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lng = parseFloat(pos.coords.longitude.toFixed(6));
+        setFlyTo([lat, lng]);
+        handleMapClick(lat, lng);   // reuse existing handler: sets coords + reverse geocodes
+        setGpsLoading(false);
+      },
+      (err) => {
+        setGpsLoading(false);
+        if (err.code === 1) {
+          setGpsError("Location permission denied. Please allow location access in your browser and try again.");
+        } else if (err.code === 2) {
+          setGpsError("Unable to determine your location. Please click on the map manually.");
+        } else {
+          setGpsError("Location request timed out. Please click on the map manually.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   // Handle other input fields
@@ -146,9 +250,20 @@ const Register = () => {
       return;
     }
 
-    if (formData.role === "agronomist" && !idProof) {
-      setError(t('register.idProofRequired'));
-      return;
+    // Validation for agronomist
+    if (formData.role === "agronomist") {
+      if (!formData.qualification || !formData.experience) {
+        setError("Qualification and experience are required for agronomists.");
+        return;
+      }
+      if (!formData.longitude || !formData.latitude) {
+        setError("Please select your location on the map.");
+        return;
+      }
+      if (!idProof) {
+        setError(t('ID proof is required for agronomist registration.'));
+        return;
+      }
     }
 
     setLoading(true);
@@ -165,14 +280,18 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-white py-8 px-4 sm:px-6 lg:px-8">
+    <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark
+      ? 'bg-gradient-to-br from-[#0a0f1e] via-[#1e1b4b] to-[#0f2417]'
+      : 'bg-gradient-to-br from-green-50 via-emerald-50 to-white'
+      }`}>
       <div className="max-w-4xl mx-auto">
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className={`rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-[#0f172a] border border-white/10' : 'bg-white'
+          }`}>
           {/* Header */}
           <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-6 text-center">
             <div className="text-5xl mb-3">📝</div>
-            <h2 className="text-3xl font-bold text-white">{t('register.title')}</h2>
+            <h2 className="text-3xl font-bold text-white">{t('Create Your Account')}</h2>
             <p className="mt-2 text-green-100 text-sm">Create your account and get started</p>
           </div>
 
@@ -190,11 +309,11 @@ const Register = () => {
             {/* Full Name + Mobile */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('register.fullName')} *
+                <label className={labelClass}>
+                  {t('Full Name')} *
                 </label>
                 <input
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                  className={inputClass}
                   name="fullName"
                   required
                   value={formData.fullName}
@@ -204,11 +323,11 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('common.mobileNumber')} *
+                <label className={labelClass}>
+                  {t('Mobile Number')} *
                 </label>
                 <input
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                  className={inputClass}
                   name="mobileNumber"
                   required
                   maxLength={10}
@@ -230,13 +349,13 @@ const Register = () => {
             {/* Password + Role */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('common.password')} *
+                <label className={labelClass}>
+                  {t('Password')} *
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    className={`${inputClass} pr-12`}
                     name="password"
                     required
                     value={formData.password}
@@ -264,130 +383,196 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('register.role')} *
+                <label className={labelClass}>
+                  {t('Role')} *
                 </label>
                 <select
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors bg-white"
+                  className={inputClass}
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
                 >
-                  <option value="farmer">{t('register.farmer')}</option>
-                  <option value="agronomist">{t('register.agronomist')}</option>
+                  <option value="farmer">{t('Farmer')}</option>
+                  <option value="agronomist">{t('Agronomist')}</option>
                 </select>
-              </div>
-            </div>
-
-            {/* Language */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {t('register.language')}
-              </label>
-              <select
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors bg-white"
-                name="language"
-                value={formData.language}
-                onChange={handleChange}
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="mr">Marathi</option>
-              </select>
-            </div>
-
-            {/* Map for Farmers */}
-            {formData.role === "farmer" && (
-              <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <span>🌾</span>
-                  <span>{t('register.selectFarmLocation')}</span>
-                </h3>
-
-                <div className="border-2 border-gray-200 rounded-lg overflow-hidden" style={{ height: "350px" }}>
-                  <MapContainer
-                    center={defaultCenter}
-                    zoom={defaultZoom}
-                    scrollWheelZoom={true}
-                    style={{ height: "100%", width: "100%" }}
-                  >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-                    {formData.latitude && formData.longitude && (
-                      <Marker
-                        position={[
-                          parseFloat(formData.latitude),
-                          parseFloat(formData.longitude),
-                        ]}
-                      />
-                    )}
-
-                    <MapClickHandler onMapClick={handleMapClick} />
-                  </MapContainer>
-                </div>
-
-                {formData.latitude && (
-                  <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                    <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                      <span>🌍</span>
-                      <span>{t('register.selectedLocation')}: {formData.latitude}, {formData.longitude}</span>
-                    </p>
-                  </div>
-                )}
-
-                {locationLoading && (
-                  <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-                    <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      {t('register.detecting')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* District + Taluka */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('register.district')}
-                </label>
-                <input
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                  name="district"
-                  value={formData.district}
-                  onChange={handleChange}
-                  placeholder="District"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {t('register.taluka')}
-                </label>
-                <input
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                  name="taluka"
-                  value={formData.taluka}
-                  onChange={handleChange}
-                  placeholder="Taluka"
-                />
               </div>
             </div>
 
             {/* Agronomist Extra Fields */}
             {formData.role === "agronomist" && (
               <>
+                {/* Map for Location Selection */}
+                <div className="mb-6">
+                  <h3 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                    <span>📍</span>
+                    <span>Select Your Farm Location (Required) *</span>
+                  </h3>
+
+                  {/* ── Use My Location button ─────────────────────────────── */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <button
+                      type="button"
+                      onClick={handleUseMyLocation}
+                      disabled={gpsLoading}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                        shadow-sm transition-all duration-200 border
+                        ${gpsLoading
+                          ? 'opacity-60 cursor-not-allowed'
+                          : 'hover:scale-[1.03] active:scale-[0.97]'
+                        }
+                        ${isDark
+                          ? 'bg-indigo-600/80 border-indigo-500 text-white hover:bg-indigo-500'
+                          : 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
+                        }`}
+                    >
+                      {gpsLoading ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Detecting Location…
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round"
+                              d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z" />
+                            <circle cx="12" cy="9" r="2.5" fill="currentColor" stroke="none" />
+                          </svg>
+                          Use My Current Location
+                        </>
+                      )}
+                    </button>
+                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      or click anywhere on the map
+                    </span>
+                  </div>
+
+                  {/* GPS error */}
+                  {gpsError && (
+                    <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-sm">
+                      <span className="mt-0.5 flex-shrink-0">⚠️</span>
+                      <span>{gpsError}</span>
+                    </div>
+                  )}
+
+                  {/* Map */}
+                  <div className="border-2 border-gray-200 rounded-xl overflow-hidden" style={{ height: "340px" }}>
+                    <MapContainer
+                      center={flyTo || defaultCenter}
+                      zoom={flyTo ? 14 : defaultZoom}
+                      scrollWheelZoom={true}
+                      style={{ height: "100%", width: "100%" }}
+                    >
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+                      {formData.latitude && formData.longitude && (
+                        <Marker
+                          position={[
+                            parseFloat(formData.latitude),
+                            parseFloat(formData.longitude),
+                          ]}
+                        />
+                      )}
+
+                      {/* Fly to GPS position when detected */}
+                      {flyTo && <FlyToLocation position={flyTo} />}
+
+                      <MapClickHandler onMapClick={handleMapClick} />
+                    </MapContainer>
+                  </div>
+
+
+                  {/* Location confirmation card */}
+                  {formData.latitude && (
+                    <div className={`mt-4 rounded-xl border px-4 py-3 ${isDark ? 'bg-emerald-900/20 border-emerald-700/40' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <p className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                        <span>✅</span> Location Detected
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {/* District */}
+                        {formData.district && (
+                          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold ${isDark ? 'bg-white/10 text-white' : 'bg-white border border-emerald-200 text-gray-800'}`}>
+                            <span>🏛️</span>
+                            <span className={`text-xs font-bold uppercase tracking-wide mr-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>District:</span>
+                            {formData.district}
+                          </div>
+                        )}
+                        {/* Taluka */}
+                        {formData.taluka && (
+                          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold ${isDark ? 'bg-white/10 text-white' : 'bg-white border border-emerald-200 text-gray-800'}`}>
+                            <span>🏘️</span>
+                            <span className={`text-xs font-bold uppercase tracking-wide mr-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Taluka:</span>
+                            {formData.taluka}
+                          </div>
+                        )}
+                        {/* Coordinates */}
+                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono ${isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-50 border border-gray-200 text-gray-500'}`}>
+                          <span>📌</span>
+                          {formData.latitude}, {formData.longitude}
+                        </div>
+                      </div>
+                      {/* If district/taluka missing, prompt user */}
+                      {!formData.district && !locationLoading && (
+                        <p className={`text-xs mt-2 ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                          ⚠️ Could not auto-detect district. Please fill it in manually below.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+
+                  {locationLoading && (
+                    <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
+                      <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {t('Detecting district & taluka…')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* District + Taluka */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {t('register.qualification')} *
+                    <label className={labelClass}>
+                      {t('District')}
                     </label>
                     <input
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      className={inputClass}
+                      name="district"
+                      value={formData.district}
+                      onChange={handleChange}
+                      placeholder="District"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>
+                      {t('Taluka')}
+                    </label>
+                    <input
+                      className={inputClass}
+                      name="taluka"
+                      value={formData.taluka}
+                      onChange={handleChange}
+                      placeholder="Taluka"
+                    />
+                  </div>
+                </div>
+
+                {/* Qualification + Experience */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className={labelClass}>
+                      {t('Qualification')} *
+                    </label>
+                    <input
+                      className={inputClass}
                       name="qualification"
                       required
                       value={formData.qualification}
@@ -397,12 +582,12 @@ const Register = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {t('register.experience')} *
+                    <label className={labelClass}>
+                      {t('Experience (Years)')} *
                     </label>
                     <input
                       type="number"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      className={inputClass}
                       name="experience"
                       required
                       value={formData.experience}
@@ -412,9 +597,10 @@ const Register = () => {
                   </div>
                 </div>
 
+                {/* ID Proof Upload */}
                 <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {t('register.idProof')} *
+                  <label className={labelClass}>
+                    {t('ID Proof Document')} *
                   </label>
                   <div className="relative">
                     <input
@@ -424,7 +610,7 @@ const Register = () => {
                       className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
                     />
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">{t('register.idProofRequired')}</p>
+                  <p className="mt-2 text-xs text-gray-500">{t('ID proof is required for agronomist registration.')}</p>
                 </div>
               </>
             )}
@@ -442,20 +628,20 @@ const Register = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    {t('register.registering')}
+                    {t('Registering...')}
                   </>
                 ) : (
-                  t('common.register')
+                  t('Register')
                 )}
               </button>
             </div>
 
             {/* Login Link */}
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                {t('register.alreadyHaveAccount')}{' '}
-                <Link to="/login" className="font-semibold text-green-600 hover:text-green-700 transition-colors">
-                  {t('common.signIn')}
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {t('Already have an account?')}{' '}
+                <Link to="/login" className="font-semibold text-green-500 hover:text-green-400 transition-colors">
+                  {t('Sign In')}
                 </Link>
               </p>
             </div>

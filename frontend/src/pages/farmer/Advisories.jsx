@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../../context/LanguageContext';
 
 const Advisories = () => {
   const { user } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t, lang } = useLanguage();
   const [weatherData, setWeatherData] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,11 +36,11 @@ const Advisories = () => {
           longitude,
         });
       } else {
-        setError(t('advisory.noLocation'));
+        setError(t('Location not found. Please update your profile with district and coordinates.'));
       }
     } catch (err) {
       console.error('Failed to fetch user location:', err);
-      setError(t('advisory.locationError'));
+      setError(t('Failed to fetch location. Please try again.'));
     }
   };
 
@@ -53,7 +53,7 @@ const Advisories = () => {
       setError('');
 
       const { latitude, longitude } = userLocation;
-      
+
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=auto&forecast_days=7`;
 
       const response = await fetch(url);
@@ -65,7 +65,7 @@ const Advisories = () => {
       setWeatherData(data);
     } catch (err) {
       console.error('Failed to fetch weather data:', err);
-      setError(t('advisory.weatherError'));
+      setError(t('Failed to fetch weather data. Please try again later.'));
     } finally {
       setLoading(false);
     }
@@ -101,14 +101,14 @@ const Advisories = () => {
     if (dayData.tempMax > 40) {
       advisories.push({
         type: 'highTemp',
-        message: t('advisory.highTemp'),
+        message: t('High temperature alert! Protect crops from heat stress. Provide shade and increase irrigation.'),
         level: 'high',
         icon: '🌡️',
       });
     } else if (dayData.tempMin < 5) {
       advisories.push({
         type: 'frost',
-        message: t('advisory.frostAlert'),
+        message: t('Frost alert! Cover sensitive crops and protect from freezing temperatures.'),
         level: 'high',
         icon: '❄️',
       });
@@ -119,14 +119,14 @@ const Advisories = () => {
     if (precipitation < 2) {
       advisories.push({
         type: 'watering',
-        message: t('advisory.wateringNeeded'),
+        message: t('Watering recommended. Low rainfall and high evapotranspiration detected.'),
         level: 'medium',
         icon: '💧',
       });
     } else if (precipitation > 20) {
       advisories.push({
         type: 'excessRain',
-        message: t('advisory.excessRain'),
+        message: t('Heavy rainfall expected. Ensure proper drainage to prevent waterlogging.'),
         level: 'medium',
         icon: '🌧️',
       });
@@ -137,7 +137,7 @@ const Advisories = () => {
     if (windSpeed > 30) {
       advisories.push({
         type: 'highWind',
-        message: t('advisory.highWind'),
+        message: t('High wind alert! Secure crops and structures. Wind speed may damage plants.'),
         level: 'high',
         icon: '💨',
       });
@@ -149,7 +149,7 @@ const Advisories = () => {
     if (isRainyWeather && precipitation > 10) {
       advisories.push({
         type: 'disease',
-        message: t('advisory.diseaseAlert'),
+        message: t('High disease risk! High humidity and rainfall increase fungal disease risk. Apply preventive fungicides.'),
         level: 'high',
         icon: '⚠️',
       });
@@ -159,7 +159,7 @@ const Advisories = () => {
     if (precipitation > 5 && precipitation < 15 && dayData.tempMax > 20 && dayData.tempMax < 35) {
       advisories.push({
         type: 'fertilizer',
-        message: t('advisory.fertilizerGood'),
+        message: t('Good conditions for fertilizer application. Moderate temperature and rainfall.'),
         level: 'low',
         icon: '🌾',
       });
@@ -178,11 +178,11 @@ const Advisories = () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     if (date.toDateString() === today.toDateString()) {
-      return t('advisory.today');
+      return t('Today');
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      return t('advisory.tomorrow');
+      return t('Tomorrow');
     } else {
-      return date.toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : i18n.language === 'mr' ? 'mr-IN' : 'en-IN', {
+      return date.toLocaleDateString(lang === 'hi' ? 'hi-IN' : lang === 'mr' ? 'mr-IN' : 'en-IN', {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
@@ -211,7 +211,7 @@ const Advisories = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-          <p className="mt-4 text-gray-600">{t('advisory.loading')}</p>
+          <p className="mt-4 text-gray-600">{t('Loading weather advisory...')}</p>
         </div>
       </div>
     );
@@ -231,7 +231,7 @@ const Advisories = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
-          {t('advisory.noData')}
+          {t('No weather data available. Please ensure your profile has a valid location.')}
         </div>
       </div>
     );
@@ -243,10 +243,10 @@ const Advisories = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('advisory.title')}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('Weather-Based Crop Advisory')}</h1>
           {userLocation && (
             <p className="text-gray-600 mt-2">
-              🌍 {t('advisory.district')}: {userLocation.district}
+              🌍 {t('District')}: {userLocation.district}
             </p>
           )}
         </div>
@@ -255,7 +255,7 @@ const Advisories = () => {
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
         >
           <span>🔄</span>
-          {t('common.refresh')}
+          {t('Refresh')}
         </button>
       </div>
 
@@ -276,9 +276,8 @@ const Advisories = () => {
           return (
             <div
               key={index}
-              className={`bg-white rounded-lg shadow-lg overflow-hidden border-2 ${
-                hasHighAlerts ? 'border-red-400' : 'border-gray-200'
-              } hover:shadow-xl transition-shadow`}
+              className={`bg-white rounded-lg shadow-lg overflow-hidden border-2 ${hasHighAlerts ? 'border-red-400' : 'border-gray-200'
+                } hover:shadow-xl transition-shadow`}
             >
               {/* Card Header */}
               <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4">
@@ -299,14 +298,14 @@ const Advisories = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">💧</span>
-                      <span className="text-gray-600">{t('advisory.precipitation')}</span>
+                      <span className="text-gray-600">{t('Precipitation')}</span>
                     </div>
                     <span className="font-semibold text-gray-900">{dayData.precipitation?.toFixed(1) || 0} mm</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">💨</span>
-                      <span className="text-gray-600">{t('advisory.wind')}</span>
+                      <span className="text-gray-600">{t('Wind Speed')}</span>
                     </div>
                     <span className="font-semibold text-gray-900">{dayData.windSpeed?.toFixed(1) || 0} km/h</span>
                   </div>
@@ -334,7 +333,7 @@ const Advisories = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-xl">✅</span>
                       <p className="text-sm font-medium text-gray-800">
-                        {t('advisory.allGood')}
+                        {t('All conditions favorable for crop growth.')}
                       </p>
                     </div>
                   </div>

@@ -98,3 +98,10 @@ logs
 # Misc
 .DS_Store
 Thumbs.db
+
+# Crop Project / ML Models
+/crop_project/.env
+/crop_project/.venv/
+/crop_project/__pycache__/
+/crop_project/runs/
+/crop_project/*.pt

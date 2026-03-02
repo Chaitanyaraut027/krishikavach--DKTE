@@ -14,8 +14,9 @@ import agronomistRoutes from './routes/agronomist.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import mediaRoutes from './routes/media.routes.js';
 import weatherRoutes from './routes/weather.routes.js';
-import advisoryRoutes from './routes/advisory.routes.js';
+import marketRoutes from './routes/market.routes.js';
 import mlServerRoutes from './routes/mlServer.routes.js';
+import geminiRoutes from './routes/gemini.routes.js';
 
 // --- Import Error Middleware ---
 import { errorHandler } from './middleware/error.middleware.js';
@@ -36,7 +37,7 @@ const allowedOrigins = [
 // --- Core Middleware ---
 app.use(helmet());
 app.use(cors({
-  origin: function(origin, callback) {
+  origin: function (origin, callback) {
     // allow requests with no origin (e.g., Postman)
     if (!origin) return callback(null, true);
 
@@ -67,8 +68,9 @@ app.use('/api/v1/agronomists', agronomistRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/media', mediaRoutes);
 app.use('/api/v1/weather', weatherRoutes);
-app.use('/api/v1/advisories', advisoryRoutes);
+app.use('/api/v1/market', marketRoutes);
 app.use('/api/v1/ml-server', mlServerRoutes);
+app.use('/api/v1/disease-info', geminiRoutes);
 
 // --- 404 Handler for unknown routes ---
 app.use((req, res, next) => {
