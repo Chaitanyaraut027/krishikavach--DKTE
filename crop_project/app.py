@@ -11,8 +11,13 @@ from PIL import Image
 import io, os, uvicorn
 
 # ── Model path ────────────────────────────────────────────────────────────────
-MODEL_PATH = os.path.join(os.path.dirname(__file__),
-                          "runs", "detect", "train", "weights", "best.pt")
+# ── Model path ────────────────────────────────────────────────────────────────
+MODEL_PATH = r"C:\Users\SIMRAN\OneDrive\Desktop\best_v2.pt"
+
+if not os.path.exists(MODEL_PATH):
+    FALLBACK_MODEL = os.path.join(os.path.dirname(__file__), "yolov8s.pt")
+    print(f"Warning: Custom weights not found. Falling back to {FALLBACK_MODEL}")
+    MODEL_PATH = FALLBACK_MODEL
 
 app = FastAPI(title="Krishi Kavach ML Server", version="2.0")
 

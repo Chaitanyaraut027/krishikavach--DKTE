@@ -21,6 +21,7 @@ import CropManagement from './pages/farmer/Crops';
 import DiseaseReports from './pages/farmer/DiseaseReports';
 import Weather from './pages/farmer/Weather';
 import Market from './pages/farmer/Market';
+import Schemes from './pages/farmer/Schemes';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -57,6 +58,7 @@ function App() {
                     <Route path="/farmer/disease-reports" element={<ProtectedRoute allowedRoles={['farmer']}><DiseaseReports /></ProtectedRoute>} />
                     <Route path="/farmer/weather" element={<ProtectedRoute allowedRoles={['farmer']}><Weather /></ProtectedRoute>} />
                     <Route path="/farmer/market" element={<ProtectedRoute allowedRoles={['farmer']}><Market /></ProtectedRoute>} />
+                    <Route path="/farmer/schemes" element={<ProtectedRoute allowedRoles={['farmer']}><Schemes /></ProtectedRoute>} />
                     <Route path="/farmer/profile" element={<ProtectedRoute allowedRoles={['farmer']}><UserProfile /></ProtectedRoute>} />
 
                     {/* Admin Routes */}

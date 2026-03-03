@@ -206,5 +206,10 @@ export const mediaAPI = {
   },
 };
 
+// Schemes APIs
+export const schemesAPI = {
+  checkEligibility: (data) => api.post('/schemes/eligibility', data),
+};
+
 export default api;
 

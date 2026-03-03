@@ -188,6 +188,7 @@ const FarmerDashboard = () => {
     { to: '/farmer/disease-reports', icon: '🔬', title: t('AI Disease Detection'), desc: t('Detect crop diseases with AI'), gradient: 'from-orange-500 to-red-500', bg: 'bg-orange-50', halo: '#f97316' },
     { to: '/farmer/weather', icon: '⛅', title: t('Weather Forecast'), desc: t('7-day forecast for your farm'), gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', halo: '#3b82f6' },
     { to: '/farmer/market', icon: '📊', title: t('Market Prices'), desc: t('Live mandi prices near you'), gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', halo: '#8b5cf6' },
+    { to: '/farmer/schemes', icon: '🏛️', title: t('Govt Schemes'), desc: t('Check AI specific eligibility'), gradient: 'from-blue-600 to-indigo-600', bg: 'bg-blue-50', halo: '#4f46e5' },
     { to: '/profile', icon: '👤', title: t('My Profile'), desc: t('Update location & settings'), gradient: 'from-rose-500 to-pink-500', bg: 'bg-rose-50', halo: '#f43f5e' },
   ];
 
