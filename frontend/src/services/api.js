@@ -206,5 +206,13 @@ export const mediaAPI = {
   },
 };
 
+// Government Schemes APIs
+export const schemesAPI = {
+  getProfile: () => api.get('/schemes/profile'),
+  saveProfile: (data) => api.post('/schemes/profile', data),
+  checkEligibility: (data) => api.post('/schemes/check-eligibility', data),
+  getAllSchemes: () => api.get('/schemes/all'),
+};
+
 export default api;
 
