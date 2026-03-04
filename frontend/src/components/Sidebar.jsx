@@ -77,19 +77,19 @@ const Sidebar = ({ isOpen, onClose }) => {
                         animate="open"
                         exit="closed"
                         variants={variants}
-                        className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl overflow-y-auto border-r bg-white border-gray-100 text-gray-900`}
+                        className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl overflow-y-auto border-r bg-[var(--bg-page)] border-[var(--border-card)] text-[var(--text-primary)]`}
                     >
                         <div className="p-6 flex flex-col h-full">
                             <div className="flex items-center justify-between mb-10">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center border transition-all bg-emerald-50 border-emerald-200">
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center border transition-all bg-[var(--bg-card)] border-[var(--border-accent)]">
                                         <Sprout className="text-emerald-500 w-6 h-6" />
                                     </div>
-                                    <span className="font-extrabold text-xl tracking-tight text-[#050e0a]">Krishi Kavach</span>
+                                    <span className="font-extrabold text-xl tracking-tight text-[var(--text-primary)]">Krishi Kavach</span>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-500"
+                                    className="p-2 rounded-full transition-colors hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)]"
                                 >
                                     <X size={24} />
                                 </button>
@@ -106,10 +106,10 @@ const Sidebar = ({ isOpen, onClose }) => {
                                             onClick={onClose}
                                             className={`group flex items-center gap-3.5 px-4 py-3.5 rounded-2xl transition-all duration-200 text-sm font-bold ${active
                                                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-700'
+                                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] hover:text-emerald-600'
                                                 }`}
                                         >
-                                            <Icon size={20} className={`${active ? 'text-white' : 'text-gray-400 group-hover:text-emerald-600'} transition-colors`} />
+                                            <Icon size={20} className={`${active ? 'text-white' : 'text-[var(--text-muted)] group-hover:text-emerald-600'} transition-colors`} />
                                             <span>{t(link.label)}</span>
                                             {active && (
                                                 <motion.div
@@ -122,16 +122,16 @@ const Sidebar = ({ isOpen, onClose }) => {
                                 })}
                             </div>
 
-                            <div className="pt-6 mt-6 border-t border-gray-100 space-y-4">
+                            <div className="pt-6 mt-6 border-t border-[var(--border-card)] space-y-4">
                                 {user && (
-                                    <div className="px-4 py-3 rounded-2xl border transition-colors bg-gray-50 border-gray-100">
+                                    <div className="px-4 py-3 rounded-2xl border transition-colors bg-[var(--bg-card)] border-[var(--border-card)]">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white shadow-inner">
                                                 {user.fullName?.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="overflow-hidden">
-                                                <p className="text-sm font-black truncate text-gray-900">{user.fullName}</p>
-                                                <p className="text-xs font-medium capitalize truncate text-gray-500">{user.role}</p>
+                                                <p className="text-sm font-black truncate text-[var(--text-primary)]">{user.fullName}</p>
+                                                <p className="text-xs font-medium capitalize truncate text-[var(--text-secondary)]">{user.role}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -142,7 +142,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                                         onClose();
                                         await logout();
                                     }}
-                                    className="flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all font-bold active:scale-95 text-red-600 hover:bg-red-50"
+                                    className="flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all font-bold active:scale-95 text-red-600 hover:bg-red-500/10"
                                 >
                                     <LogOut size={22} />
                                     <span>Logout</span>
