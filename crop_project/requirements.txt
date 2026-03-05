@@ -6,4 +6,6 @@ python-multipart>=0.0.9
 sentence-transformers
 youtube-search-python
 google-api-python-client
+requests
+beautifulsoup4
 

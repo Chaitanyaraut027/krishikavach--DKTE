@@ -10,12 +10,14 @@ import {
   LogOut,
   ChevronRight,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import Sidebar from './Sidebar';
+import ChatDrawer from './ChatDrawer';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -26,6 +28,7 @@ const Navbar = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -114,8 +117,23 @@ const Navbar = () => {
               <span className="font-black text-lg tracking-tighter text-primary">KRISHI KAVACH</span>
             </Link>
 
-            {/* Right side: theme toggle + profile */}
+            {/* Right side: theme toggle + chat + profile */}
             <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+              {/* Chat Button */}
+              {user && (
+                <button
+                  onClick={() => setIsChatOpen(true)}
+                  className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all duration-300 active:scale-90 relative ${isDark
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-white'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
+                  title="Collaboration & Chat"
+                >
+                  <MessageSquare size={20} />
+                  {/* Notification Dot (Simplified for now) */}
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-gray-900" />
+                </button>
+              )}
+
               {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
@@ -215,6 +233,11 @@ const Navbar = () => {
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+      />
+
+      <ChatDrawer 
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
       />
     </>
   );

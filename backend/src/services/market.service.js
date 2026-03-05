@@ -1,16 +1,46 @@
-/**
- * services/market.service.js
- * Lightweight query helpers for market price records in MongoDB.
- * Price intelligence is now provided by Groq AI (gemini.service.js → getMarketPrices).
- * This file handles only stored-record queries (search, history, stats, filters).
- */
-
 import MarketPrice from '../models/marketPrice.model.js';
-
-// ── No-op scrape stub (cron in server.js calls this) ─────────────────────────
+import ProcessingCenter from '../models/processingCenter.model.js';
+import { getMarketPrices } from './gemini.service.js';
+// ── Daily scrape cycle for facility market prices ──────────────────────────────
 export const runScrapeCycle = async () => {
-    console.log('[Market] RSS scraping disabled — prices now via Groq AI');
-    return { saved: 0, errors: [] };
+    console.log('[Market] Starting facility price scrape cycle...');
+    let updatedCount = 0;
+    const errors = [];
+
+    try {
+        // Fetch all verified facilities
+        const facilities = await ProcessingCenter.find({ source: 'ADMIN' });
+        
+        for (const facility of facilities) {
+            try {
+                // Use existing Gemini/Groq logic to get latest prices for common crops in that city
+                const crops = ['Sugar', 'Cotton', 'Soybean', 'Grapes'];
+                const priceData = await getMarketPrices(crops, null, facility.city); // Pass city as state/region context
+                
+                if (priceData && priceData.length > 0) {
+                    // Map to simple {crop, price, unit} format
+                    const mappedPrices = priceData.map(p => ({
+                        crop: p.requestedCrop,
+                        price: p.pricePerQuintal,
+                        unit: 'quintal', // standardized
+                        updatedAt: new Date()
+                    }));
+
+                    facility.marketPrices = mappedPrices;
+                    await facility.save();
+                    updatedCount++;
+                }
+            } catch (err) {
+                console.error(`[Market] Failed to update ${facility.name}:`, err.message);
+                errors.push({ facility: facility.name, error: err.message });
+            }
+        }
+
+        return { saved: updatedCount, errors };
+    } catch (err) {
+        console.error('[Market] Scrape cycle critical failure:', err.message);
+        throw err;
+    }
 };
 
 // ── Query helpers ─────────────────────────────────────────────────────────────

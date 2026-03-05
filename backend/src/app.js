@@ -17,6 +17,7 @@ import weatherRoutes from './routes/weather.routes.js';
 import marketRoutes from './routes/market.routes.js';
 import mlServerRoutes from './routes/mlServer.routes.js';
 import geminiRoutes from './routes/gemini.routes.js';
+import supplyChainRoutes from './routes/supplyChain.routes.js';
 
 // --- Import Error Middleware ---
 import { errorHandler } from './middleware/error.middleware.js';
@@ -29,9 +30,10 @@ const app = express();
 
 // --- Allowed origins for CORS ---
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
+  'http://localhost:3000',
+  'http://localhost:3001',
   'https://krushikavach.netlify.app',
-  'http://localhost:3000'
+  'https://krushikavach.netlify.app/'
 ];
 
 // --- Core Middleware ---
@@ -71,6 +73,7 @@ app.use('/api/v1/weather', weatherRoutes);
 app.use('/api/v1/market', marketRoutes);
 app.use('/api/v1/ml-server', mlServerRoutes);
 app.use('/api/v1/disease-info', geminiRoutes);
+app.use('/api/v1/supply-chain', supplyChainRoutes);
 
 // --- 404 Handler for unknown routes ---
 app.use((req, res, next) => {

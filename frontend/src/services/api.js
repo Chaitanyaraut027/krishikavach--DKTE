@@ -154,6 +154,18 @@ export const adminAPI = {
   deleteFarmer: (id) => api.delete(`/admin/farmers/${id}`),
   listAgronomists: () => api.get('/admin/agronomists'),
   deleteAgronomist: (id) => api.delete(`/admin/agronomists/${id}`),
+  listFacilities: () => api.get('/admin/facilities'),
+  addFacility: (data) => api.post('/admin/facilities', data),
+  updateFacility: (id, data) => api.patch(`/admin/facilities/${id}`, data),
+  deleteFacility: (id) => api.delete(`/admin/facilities/${id}`),
+  listSeeds: () => api.get('/admin/seeds'),
+  addSeed: (data) => api.post('/admin/seeds', data),
+  updateSeed: (id, data) => api.patch(`/admin/seeds/${id}`, data),
+  deleteSeed: (id) => api.delete(`/admin/seeds/${id}`),
+  listFertilizers: () => api.get('/admin/fertilizers'),
+  addFertilizer: (data) => api.post('/admin/fertilizers', data),
+  updateFertilizer: (id, data) => api.patch(`/admin/fertilizers/${id}`, data),
+  deleteFertilizer: (id) => api.delete(`/admin/fertilizers/${id}`),
 };
 
 // Weather APIs

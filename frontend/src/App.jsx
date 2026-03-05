@@ -17,11 +17,15 @@ import CropManagement from './pages/farmer/Crops';
 import DiseaseReports from './pages/farmer/DiseaseReports';
 import Weather from './pages/farmer/Weather';
 import Market from './pages/farmer/Market';
+import SupplyChainDashboard from './pages/farmer/SupplyChainDashboard';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import Farmers from './pages/admin/Farmers';
 import Agronomists from './pages/admin/Agronomists';
+import Facilities from './pages/admin/Facilities';
+import Seeds from './pages/admin/Seeds';
+import Fertilizers from './pages/admin/Fertilizers';
 
 // Agronomist Pages
 import AgronomistDashboard from './pages/agronomist/AgronomistDashboard';
@@ -48,12 +52,16 @@ function App() {
           <Route path="/farmer/disease-reports" element={<ProtectedRoute allowedRoles={['farmer']}><DiseaseReports /></ProtectedRoute>} />
           <Route path="/farmer/weather" element={<ProtectedRoute allowedRoles={['farmer']}><Weather /></ProtectedRoute>} />
           <Route path="/farmer/market" element={<ProtectedRoute allowedRoles={['farmer']}><Market /></ProtectedRoute>} />
+          <Route path="/farmer/supply-chain" element={<ProtectedRoute allowedRoles={['farmer']}><SupplyChainDashboard /></ProtectedRoute>} />
           <Route path="/farmer/profile" element={<ProtectedRoute allowedRoles={['farmer']}><UserProfile /></ProtectedRoute>} />
 
           {/* Admin Routes */}
           <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/farmers" element={<ProtectedRoute allowedRoles={['admin']}><Farmers /></ProtectedRoute>} />
           <Route path="/admin/agronomists" element={<ProtectedRoute allowedRoles={['admin']}><Agronomists /></ProtectedRoute>} />
+          <Route path="/admin/facilities" element={<ProtectedRoute allowedRoles={['admin']}><Facilities /></ProtectedRoute>} />
+          <Route path="/admin/seeds" element={<ProtectedRoute allowedRoles={['admin']}><Seeds /></ProtectedRoute>} />
+          <Route path="/admin/fertilizers" element={<ProtectedRoute allowedRoles={['admin']}><Fertilizers /></ProtectedRoute>} />
           <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={['admin']}><UserProfile /></ProtectedRoute>} />
 
           {/* Agronomist Routes */}

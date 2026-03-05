@@ -36,6 +36,7 @@ import uvicorn
 from youtube_search import search_videos
 from transformers import ViTForImageClassification, ViTImageProcessor
 import torch.nn.functional as F
+from scraper_service import get_hybrid_facilities
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(__file__)
@@ -535,6 +536,14 @@ async def identify_crop(file: UploadFile = File(...)):
         "confidence": round(float(conf) * 100, 2),
         "label": full_label
     }
+
+@app.get("/search-facilities")
+async def search_facilities(lat: float, lon: float, radius: float = 50, city: str = None):
+    try:
+        results = get_hybrid_facilities(lat, lon, radius, city)
+        return {"success": True, "count": len(results), "data": results}
+    except Exception as e:
+        return {"success": False, "error": str(e), "data": []}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
