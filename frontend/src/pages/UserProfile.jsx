@@ -660,6 +660,11 @@ const UserProfile = () => {
                       <option value="Laterite Soil">{t('Laterite Soil')}</option>
                       <option value="Sandy Soil">{t('Sandy Soil')}</option>
                       <option value="Clayey Soil">{t('Clayey Soil')}</option>
+                      <option value="Loamy Soil">{t('Loamy Soil')}</option>
+                      <option value="Saline Soil">{t('Saline Soil')}</option>
+                      <option value="Peaty Soil">{t('Peaty Soil')}</option>
+                      <option value="Mountain Soil">{t('Mountain Soil')}</option>
+                      <option value="Desert Soil">{t('Desert Soil')}</option>
                     </select>
                   </div>
 
@@ -677,6 +682,8 @@ const UserProfile = () => {
                       <option value="Sprinkler">{t('Sprinkler')}</option>
                       <option value="Borewell">{t('Borewell')}</option>
                       <option value="Canal">{t('Canal')}</option>
+                      <option value="Well">{t('Well')}</option>
+                      <option value="Tank / Pond">{t('Tank / Pond')}</option>
                       <option value="Rain-fed">{t('Rain-fed')}</option>
                     </select>
                   </div>

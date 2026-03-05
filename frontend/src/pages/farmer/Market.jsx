@@ -22,7 +22,7 @@ import {
     AlertTriangle,
     Brain
 } from 'lucide-react';
-import { cropAPI, geminiAPI, userAPI } from '../../services/api';
+import { cropAPI, geminiAPI, userAPI, marketAPI } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import AIKeyModal from '../../components/AIKeyModal';
@@ -546,6 +546,9 @@ const Market = () => {
     const [userProfile, setUserProfile] = useState(null);
     const [activePanel, setActivePanel] = useState(null);
     const [searchInput, setSearchInput] = useState('');
+    const [nearbyDistricts, setNearbyDistricts] = useState([]);
+    const [marketRadius, setMarketRadius] = useState(50);
+    const [loadingNearby, setLoadingNearby] = useState(false);
     const { isDark } = useTheme();
     const { t } = useLanguage();
 
@@ -559,6 +562,31 @@ const Market = () => {
         try { const r = await userAPI.getProfile(); setUserProfile(r.data?.user || r.data); }
         catch { /* silent */ }
     };
+
+    // Fetch nearby market districts when profile or radius changes
+    useEffect(() => {
+        const lat = userProfile?.location?.coordinates?.[1];
+        const lng = userProfile?.location?.coordinates?.[0];
+        if (!lat || !lng) return;
+
+        const fetchNearby = async () => {
+            try {
+                setLoadingNearby(true);
+                const res = await marketAPI.getNearbyMarketPrices({ lat, lng, radius: marketRadius });
+                const locs = res.data?.locations || [];
+                setNearbyDistricts(locs.map(l => ({
+                    district: l.district,
+                    taluka: l.taluka,
+                    distanceKm: l.distanceKm,
+                })));
+            } catch {
+                setNearbyDistricts([]);
+            } finally {
+                setLoadingNearby(false);
+            }
+        };
+        fetchNearby();
+    }, [userProfile, marketRadius]);
 
     const district = userProfile?.address?.district || 'Nashik';
     const state = 'Maharashtra';
@@ -619,6 +647,85 @@ const Market = () => {
                         )}
                     </div>
                 </div>
+
+                {/* ── Nearby Market Districts (radius slider) ──────────────── */}
+                <section className="fade-up" style={{ animationDelay: '0.08s' }}>
+                    <div style={{
+                        background: isDark ? 'rgba(255,255,255,0.03)' : 'white',
+                        border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
+                        borderRadius: 24, padding: 24,
+                        boxShadow: isDark ? 'none' : '0 10px 25px rgba(0,0,0,0.04)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                            <h2 style={{ color: isDark ? '#f1f5f9' : '#1e293b', fontSize: 17, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <MapPin size={18} className="text-amber-500" /> {t('Nearby Market Districts')}
+                            </h2>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <span style={{
+                                    background: isDark ? 'rgba(245,158,11,0.15)' : '#fffbeb',
+                                    border: isDark ? '1px solid rgba(245,158,11,0.3)' : '1px solid #fde68a',
+                                    color: isDark ? '#fbbf24' : '#b45309',
+                                    borderRadius: 999, padding: '4px 14px', fontSize: 13, fontWeight: 700,
+                                }}>
+                                    {marketRadius} km radius
+                                </span>
+                                <input
+                                    type="range"
+                                    min={10} max={200} step={5}
+                                    value={marketRadius}
+                                    onChange={e => setMarketRadius(Number(e.target.value))}
+                                    style={{ width: 140, accentColor: '#f59e0b', cursor: 'pointer' }}
+                                />
+                            </div>
+                        </div>
+
+                        {!userProfile?.location?.coordinates?.[0] ? (
+                            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                                <MapPin size={36} className={isDark ? 'text-gray-600 mx-auto mb-3' : 'text-gray-300 mx-auto mb-3'} />
+                                <p style={{ color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+                                    {t('Set your location in Profile to see nearby market districts.')}
+                                </p>
+                            </div>
+                        ) : loadingNearby ? (
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {[1, 2, 3, 4].map(i => <Sk key={i} h={48} />)}
+                            </div>
+                        ) : nearbyDistricts.length === 0 ? (
+                            <p style={{ color: isDark ? '#64748b' : '#94a3b8', textAlign: 'center', padding: '16px 0', fontSize: 14 }}>
+                                {t('No market districts found within')} {marketRadius} km. {t('Try increasing the radius.')}
+                            </p>
+                        ) : (
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {nearbyDistricts.map((nd, i) => (
+                                    <button key={i}
+                                        onClick={() => { setSearchInput(nd.district); openPanel(nd.district, 'search'); }}
+                                        style={{
+                                            padding: '10px 18px', borderRadius: 16, cursor: 'pointer',
+                                            background: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb',
+                                            border: isDark ? '1px solid rgba(245,158,11,0.25)' : '1px solid #fde68a',
+                                            color: isDark ? '#fde68a' : '#92400e',
+                                            fontSize: 13, fontWeight: 600, transition: 'all 0.2s',
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                        }}
+                                        onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(245,158,11,0.2)'; }}
+                                        onMouseOut={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    >
+                                        <MapPin size={14} />
+                                        {nd.district}{nd.taluka && nd.taluka !== nd.district ? ` · ${nd.taluka}` : ''}
+                                        {nd.distanceKm != null && (
+                                            <span style={{
+                                                background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(180,83,9,0.1)',
+                                                borderRadius: 999, padding: '2px 8px', fontSize: 10, fontWeight: 700,
+                                            }}>
+                                                {nd.distanceKm} km
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
 
                 {/* ── My Crops ─────────────────────────────────────────────── */}
                 <section className="fade-up">

@@ -17,6 +17,7 @@ import weatherRoutes from './routes/weather.routes.js';
 import marketRoutes from './routes/market.routes.js';
 import mlServerRoutes from './routes/mlServer.routes.js';
 import geminiRoutes from './routes/gemini.routes.js';
+import schemesRoutes from './routes/schemes.routes.js';
 
 // --- Import Error Middleware ---
 import { errorHandler } from './middleware/error.middleware.js';
@@ -31,7 +32,9 @@ const app = express();
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:3000',
   'https://krushikavach.netlify.app',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
 ];
 
 // --- Core Middleware ---
@@ -40,6 +43,11 @@ app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (e.g., Postman)
     if (!origin) return callback(null, true);
+
+    // In development, allow any localhost port
+    if (process.env.NODE_ENV === 'development' && origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
 
     if (allowedOrigins.indexOf(origin) === -1) {
       const msg = `CORS policy does not allow access from ${origin}`;
@@ -71,6 +79,7 @@ app.use('/api/v1/weather', weatherRoutes);
 app.use('/api/v1/market', marketRoutes);
 app.use('/api/v1/ml-server', mlServerRoutes);
 app.use('/api/v1/disease-info', geminiRoutes);
+app.use('/api/v1/schemes', schemesRoutes);
 
 // --- 404 Handler for unknown routes ---
 app.use((req, res, next) => {

@@ -43,8 +43,8 @@ YOLO_MODEL_PATH = os.path.join(BASE_DIR, "runs", "detect", "train", "weights", "
 YOLO_FALLBACK = os.path.join(BASE_DIR, "yolov8s.pt")
 
 CLASS_NAMES_PATH = os.path.join(BASE_DIR, "pretrained_models", "class_names.json")
-EFFICIENTNET_PATH = os.path.join(BASE_DIR, "pretrained_models", "efficientnet_plant.pth", "efficientnet_plant")
-MOBILENET_PATH = os.path.join(BASE_DIR, "pretrained_models", "mobilenetv2_plant.pth", "mobilenetv2_plant")
+EFFICIENTNET_PATH = os.path.join(BASE_DIR, "pretrained_models", "efficientnet_plant.pth")
+MOBILENET_PATH = os.path.join(BASE_DIR, "pretrained_models", "mobilenetv2_plant.pth")
 
 app = FastAPI(title="Krishi Kavach Unified ML Server", version="3.0")
 

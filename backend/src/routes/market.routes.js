@@ -8,12 +8,16 @@ import {
     getMyCropPrices,
     getFilters,
     getMarketStatsCtrl,
+    getNearbyMarketPrices,
 } from '../controllers/market.controller.js';
 import { protect, authorizeRoles } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 // ── Protected by auth ─────────────────────────────────────────────────────────
+
+// GET /api/v1/market/nearby?lat=&lng=&radius=50&commodity=
+router.get('/nearby', protect, getNearbyMarketPrices);
 
 // GET /api/v1/market/latest?commodity=Soybean&state=Maharashtra
 router.get('/latest', protect, getLatestPrices);

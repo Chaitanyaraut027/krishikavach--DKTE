@@ -11,7 +11,8 @@ import {
     Microscope,
     UserCircle,
     X,
-    LogOut
+    LogOut,
+    Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -31,6 +32,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             { path: '/farmer/disease-reports', label: 'Disease Reports', icon: ClipboardList },
             { path: '/farmer/weather', label: 'Weather', icon: CloudSun },
             { path: '/farmer/market', label: 'Market Trends', icon: BarChart3 },
+            { path: '/farmer/schemes', label: 'Govt Schemes', icon: Landmark },
         ];
         if (user.role === 'admin') return [
             { path: '/admin', label: 'Dashboard', icon: Home },

@@ -47,6 +47,7 @@ const Navbar = () => {
     if (path.includes('/farmer/disease-reports')) return 'Disease Reports';
     if (path.includes('/farmer/weather')) return 'Weather Updates';
     if (path.includes('/farmer/market')) return 'Market Trends';
+    if (path.includes('/farmer/schemes')) return 'Govt Schemes';
     if (path.includes('/farmer/profile')) return 'My Profile';
     if (path.includes('/farmer')) return 'Dashboard';
 
@@ -101,7 +102,7 @@ const Navbar = () => {
               <div className="flex items-center gap-2 overflow-hidden">
                 <div className="h-4 w-[1px] bg-white/20 hidden sm:block mx-1" />
                 <h1 className="font-bold text-lg sm:text-xl tracking-tight text-primary truncate max-w-[150px] sm:max-w-[300px]">
-                  {getPageTitle()}
+                  {t(getPageTitle())}
                 </h1>
               </div>
             </div>

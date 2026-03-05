@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTheme } from "../context/ThemeContext";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import { motion, AnimatePresence } from "framer-motion";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -60,6 +61,8 @@ const Register = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const { register } = useAuth();
   const navigate = useNavigate();
   const mapClickRef = useRef(false);
@@ -236,7 +239,14 @@ const Register = () => {
   };
 
   const handleFileChange = (e) => {
-    setIdProof(e.target.files[0]);
+    const file = e.target.files[0];
+    setIdProof(file);
+    if (file) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
   };
 
   // ----------------------- SUBMIT FORM -----------------------
@@ -602,13 +612,41 @@ const Register = () => {
                   <label className={labelClass}>
                     {t('ID Proof Document')} *
                   </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      required
-                      onChange={handleFileChange}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
-                    />
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        type="file"
+                        required
+                        onChange={handleFileChange}
+                        className={`block w-full text-sm text-gray-500 
+                          file:mr-4 file:py-2 file:px-4 
+                          file:rounded-lg file:border-0 
+                          file:text-sm file:font-semibold 
+                          ${isDark
+                            ? 'file:bg-green-600/20 file:text-green-400 hover:file:bg-green-600/30'
+                            : 'file:bg-green-50 file:text-green-700 hover:file:bg-green-100'
+                          } 
+                          cursor-pointer transition-all`}
+                        accept="image/*,.pdf"
+                      />
+                    </div>
+                    {idProof && (
+                      <button
+                        type="button"
+                        onClick={() => setShowPreview(true)}
+                        className={`p-2.5 rounded-xl shadow-sm transition-all duration-200 border transform hover:scale-110 active:scale-95 flex items-center justify-center
+                          ${isDark
+                            ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400 hover:bg-emerald-600/40'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                          }`}
+                        title="View Document"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                   <p className="mt-2 text-xs text-gray-500">{t('ID proof is required for agronomist registration.')}</p>
                 </div>
@@ -648,6 +686,82 @@ const Register = () => {
           </form>
         </div>
       </div>
+
+      {/* Document Preview Modal */}
+      <AnimatePresence>
+        {showPreview && idProof && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`relative max-w-4xl w-full max-h-[90vh] rounded-[24px] overflow-hidden shadow-2xl border ${isDark ? 'bg-[#0f172a] border-white/10' : 'bg-white border-gray-200'
+                }`}
+            >
+              <div className="p-5 border-b flex justify-between items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-lg">{t('ID Proof Document Preview')}</h3>
+                </div>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors focus:outline-none"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className={`p-6 overflow-auto flex justify-center items-center ${isDark ? 'bg-[#0a0f1e]' : 'bg-gray-50'}`} style={{ height: '65vh' }}>
+                {idProof.type.startsWith('image/') ? (
+                  <img
+                    src={previewUrl}
+                    alt="ID Proof Preview"
+                    className="max-w-full max-h-full shadow-lg rounded-xl border border-white/10 object-contain"
+                  />
+                ) : idProof.type === 'application/pdf' ? (
+                  <iframe
+                    src={`${previewUrl}#toolbar=0`}
+                    title="ID Proof PDF Preview"
+                    className="w-full h-full rounded-xl border border-gray-200 bg-white"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-12">
+                    <div className="text-6xl mb-6">📄</div>
+                    <p className={`text-xl font-bold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {t('Preview not available for this file type')}
+                    </p>
+                    <p className="text-gray-500 mt-2">{idProof.name}</p>
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-6 px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-lg hover:scale-105 active:scale-95"
+                    >
+                      {t('Open File in New Tab')}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <div className={`p-5 border-t flex justify-end gap-3 ${isDark ? 'border-white/10 bg-[#0f172a]' : 'border-gray-100 bg-gray-50'}`}>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className={`px-8 py-3 rounded-xl font-bold transition-all shadow-sm ${isDark ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                    }`}
+                >
+                  {t('Close')}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

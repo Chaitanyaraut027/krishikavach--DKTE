@@ -144,7 +144,7 @@ export const agronomistAPI = {
   getProfile: () => api.get('/agronomists/me'),
   updateProfile: (data) => api.put('/agronomists/me', data),
   verifyAgronomist: (id, status = 'verified') => api.put(`/agronomists/${id}/verify`, { status }),
-  findLocalExperts: () => api.get('/agronomists/local'),
+  findLocalExperts: (params) => api.get('/agronomists/local', { params }),
   findLocalFarmers: () => api.get('/agronomists/farmers'),
 };
 
@@ -181,12 +181,20 @@ export const marketAPI = {
   triggerScrape: () => api.post('/market/scrape'),
   // Legacy alias
   triggerFetch: () => api.post('/market/scrape'),
+  // Get nearby market prices within adjustable radius
+  getNearbyMarketPrices: (params) => api.get('/market/nearby', { params }),
 };
 
 
 // ML Server APIs
 export const mlServerAPI = {
   getStatus: () => api.get('/ml-server/status'),
+};
+
+// Government Schemes APIs
+export const schemesAPI = {
+  checkEligibility: (data) => api.post('/schemes/eligibility', data),
+  getHowToApplyVideo: (data) => api.post('/schemes/how-to-apply', data),
 };
 
 // Groq AI — Crop Disease Info & Chatbot APIs

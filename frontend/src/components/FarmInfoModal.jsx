@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sprout, Ruler, Droplets, Leaf, ChevronRight, CheckCircle2, AlertCircle, TrendingUp, Camera } from 'lucide-react';
+import { Sprout, Ruler, Droplets, Leaf, ChevronRight, CheckCircle2, AlertCircle, TrendingUp, Camera, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { userAPI } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -173,6 +173,11 @@ const FarmInfoModal = () => {
                                             <option value="Laterite Soil">{t('Laterite Soil')}</option>
                                             <option value="Sandy Soil">{t('Sandy Soil')}</option>
                                             <option value="Clayey Soil">{t('Clayey Soil')}</option>
+                                            <option value="Loamy Soil">{t('Loamy Soil')}</option>
+                                            <option value="Saline Soil">{t('Saline Soil')}</option>
+                                            <option value="Peaty Soil">{t('Peaty Soil')}</option>
+                                            <option value="Mountain Soil">{t('Mountain Soil')}</option>
+                                            <option value="Desert Soil">{t('Desert Soil')}</option>
                                         </select>
                                     </div>
 
@@ -191,6 +196,8 @@ const FarmInfoModal = () => {
                                             <option value="Sprinkler">{t('Sprinkler')}</option>
                                             <option value="Borewell">{t('Borewell')}</option>
                                             <option value="Canal">{t('Canal')}</option>
+                                            <option value="Well">{t('Well')}</option>
+                                            <option value="Tank / Pond">{t('Tank / Pond')}</option>
                                             <option value="Rain-fed">{t('Rain-fed')}</option>
                                         </select>
                                     </div>
@@ -211,7 +218,13 @@ const FarmInfoModal = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => setStep(2)}
+                                    onClick={() => {
+                                        if (!formData.totalArea.value || !formData.soilType || !formData.irrigationType) {
+                                            alert(t('Please fill in all basic information'));
+                                            return;
+                                        }
+                                        setStep(2);
+                                    }}
                                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 group mt-4"
                                 >
                                     {t('Next Step')} <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />

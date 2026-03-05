@@ -53,30 +53,93 @@ export const verifyAgronomist = asyncHandler(async (req, res) => {
   res.json(profile);
 });
 
-// Add this to your existing agronomist.controller.js
-
-// --- Find Local Experts for Farmer ---
+// --- Find Local Experts for Farmer (50 km radius geo search) ---
 export const findLocalExperts = asyncHandler(async (req, res) => {
-  // 1. Get the logged-in farmer's district from their profile
   const farmer = await User.findById(req.user.id);
+
+  // Accept explicit lat/lng from query, else use farmer's stored location
+  let lat = parseFloat(req.query.lat);
+  let lng = parseFloat(req.query.lng);
+  const radiusKm = parseFloat(req.query.radius) || 50; // default 50 km
+
+  if (isNaN(lat) || isNaN(lng)) {
+    lat = farmer?.location?.coordinates?.[1];
+    lng = farmer?.location?.coordinates?.[0];
+  }
+
+  // If we have valid coordinates → geo search
+  if (lat && lng && isFinite(lat) && isFinite(lng)) {
+    const radiusMeters = radiusKm * 1000;
+
+    // Find users within radius who are agronomists
+    const nearbyUsers = await User.find({
+      role: 'agronomist',
+      location: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [lng, lat] },
+          $maxDistance: radiusMeters,
+        },
+      },
+    }).select('_id fullName mobileNumber address location profilePhoto')
+      .populate({ path: 'profilePhoto', select: 'url' });
+
+    const nearbyUserIds = nearbyUsers.map(u => u._id);
+
+    // Get verified agronomist profiles for those users
+    const expertProfiles = await AgronomistProfile.find({
+      user: { $in: nearbyUserIds },
+      status: 'verified',
+    }).populate({
+      path: 'user',
+      select: 'fullName mobileNumber address location profilePhoto',
+      populate: { path: 'profilePhoto', select: 'url' },
+    });
+
+    const localExperts = expertProfiles
+      .filter(p => p.user)
+      .map(profile => {
+        // Calculate distance
+        const aLat = profile.user.location?.coordinates?.[1];
+        const aLng = profile.user.location?.coordinates?.[0];
+        let distanceKm = null;
+        if (aLat && aLng) {
+          const R = 6371;
+          const dLat = ((aLat - lat) * Math.PI) / 180;
+          const dLng = ((aLng - lng) * Math.PI) / 180;
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos((lat * Math.PI) / 180) * Math.cos((aLat * Math.PI) / 180) *
+            Math.sin(dLng / 2) ** 2;
+          distanceKm = +(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
+        }
+        return {
+          id: profile._id,
+          fullName: profile.user.fullName,
+          mobileNumber: profile.user.mobileNumber,
+          district: profile.user.address?.district || '',
+          profilePhotoUrl: profile.user.profilePhoto?.url || null,
+          qualification: profile.qualification,
+          experience: profile.experience,
+          location: profile.user.location || null,
+          distanceKm,
+        };
+      })
+      .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+
+    return res.json({ radiusKm, count: localExperts.length, experts: localExperts });
+  }
+
+  // Fallback: district-based match
   if (!farmer || !farmer.address?.district) {
-    return res.status(400).json({ message: "Farmer's district not found in profile." });
+    return res.status(400).json({ message: "Farmer's location or district not found. Please update your location." });
   }
   const farmerDistrict = farmer.address.district.trim().toLowerCase();
 
-  // 2. Find verified agronomists and populate user + profile photo
-  const expertProfiles = await AgronomistProfile.find({
-    status: 'verified',
-  }).populate({
+  const expertProfiles = await AgronomistProfile.find({ status: 'verified' }).populate({
     path: 'user',
-    select: 'fullName mobileNumber address profilePhoto',
-    populate: {
-      path: 'profilePhoto',
-      select: 'url',
-    },
+    select: 'fullName mobileNumber address location profilePhoto',
+    populate: { path: 'profilePhoto', select: 'url' },
   });
 
-  // 3. Filter agronomists that share the same district and format response
   const localExperts = expertProfiles
     .filter(profile => {
       const agronomistDistrict = profile.user?.address?.district?.trim().toLowerCase();
@@ -90,9 +153,11 @@ export const findLocalExperts = asyncHandler(async (req, res) => {
       profilePhotoUrl: profile.user.profilePhoto?.url || null,
       qualification: profile.qualification,
       experience: profile.experience,
+      location: profile.user.location || null,
+      distanceKm: null,
     }));
 
-  res.json(localExperts);
+  res.json({ radiusKm: null, count: localExperts.length, experts: localExperts });
 });
 
 // --- Find Local Farmers for Agronomist ---

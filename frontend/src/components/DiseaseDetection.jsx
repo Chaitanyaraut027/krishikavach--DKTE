@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Microscope,
   Sprout,
@@ -185,6 +185,12 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
   const [relevanceError, setRelevanceError] = useState('');
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraError, setCameraError] = useState('');
+  const [facingMode, setFacingMode] = useState('environment');
 
   // ── Speech Synthesis State ──────────────────────────────────────────────────
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -303,8 +309,14 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
 
   // Cleanup speech on unmount
   useEffect(() => {
-    return () => stopSpeech();
-  }, []);
+    return () => {
+      stopSpeech();
+      // Also stop camera on unmount
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   // Load previous reports
   useEffect(() => {
@@ -324,6 +336,76 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
+
+  // ── Camera Handlers ──────────────────────────────────────────────────────
+  const openCamera = useCallback(async (facing = facingMode) => {
+    setCameraError('');
+    try {
+      // Stop existing stream if any
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      setShowCamera(true);
+      // Attach stream to video element after render
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error('[Camera]', err);
+      if (err.name === 'NotAllowedError') {
+        setCameraError(t('Camera access denied. Please allow camera permission in your browser settings.'));
+      } else if (err.name === 'NotFoundError') {
+        setCameraError(t('No camera found on this device.'));
+        // Fallback to file input
+        cameraInputRef.current?.click();
+        return;
+      } else {
+        setCameraError(t('Could not access camera. Please try uploading from gallery.'));
+      }
+      setShowCamera(true); // show modal with error
+    }
+  }, [facingMode, cameraStream, t]);
+
+  const closeCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+    setCameraError('');
+  }, [cameraStream]);
+
+  const capturePhoto = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        handleImageFile(file);
+        closeCamera();
+      }
+    }, 'image/jpeg', 0.92);
+  }, [closeCamera]);
+
+  const switchCamera = useCallback(() => {
+    const newFacing = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newFacing);
+    openCamera(newFacing);
+  }, [facingMode, openCamera]);
 
   const handleImageFile = async (file) => {
     if (!file) return;
@@ -628,7 +710,7 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                   </button>
 
                   <button
-                    onClick={() => cameraInputRef.current?.click()}
+                    onClick={() => openCamera()}
                     className={`group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-dashed hover:shadow-lg transition-all duration-200 bg-blue-50/50 border-blue-200 hover:scale-[1.02]`}
                   >
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg">
@@ -636,7 +718,7 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                     </div>
                     <div className="text-center">
                       <p className="font-bold text-gray-800">{t('Take a Photo')}</p>
-                      <p className="text-sm text-gray-500 mt-1">{t('Open your camera directly')}</p>
+                      <p className="text-sm text-gray-500 mt-1">{t('Use your camera directly')}</p>
                     </div>
                   </button>
                 </div>
@@ -668,7 +750,92 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
               </div>
             )}
             <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleImageSelect} />
-            <input ref={cameraInputRef} type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={handleImageSelect} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageSelect} />
+
+            {/* ── Camera Modal ── */}
+            {showCamera && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+                <div className="relative w-full max-w-2xl bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                  {/* Camera header */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-black/50">
+                    <h3 className="text-white font-bold text-sm flex items-center gap-2">
+                      <Camera className="w-4 h-4" />
+                      {t('Take a Photo')}
+                    </h3>
+                    <button
+                      onClick={closeCamera}
+                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Camera view */}
+                  {cameraError ? (
+                    <div className="aspect-video flex flex-col items-center justify-center text-center p-8">
+                      <AlertTriangle className="w-12 h-12 text-amber-400 mb-3" />
+                      <p className="text-white font-semibold text-sm mb-4">{cameraError}</p>
+                      <button
+                        onClick={closeCamera}
+                        className="px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors"
+                      >
+                        {t('Close')}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative aspect-video bg-black">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Viewfinder overlay */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="absolute inset-8 border-2 border-white/30 rounded-2xl" />
+                          <div className="absolute top-8 left-8 w-6 h-6 border-t-3 border-l-3 border-white rounded-tl-lg" />
+                          <div className="absolute top-8 right-8 w-6 h-6 border-t-3 border-r-3 border-white rounded-tr-lg" />
+                          <div className="absolute bottom-8 left-8 w-6 h-6 border-b-3 border-l-3 border-white rounded-bl-lg" />
+                          <div className="absolute bottom-8 right-8 w-6 h-6 border-b-3 border-r-3 border-white rounded-br-lg" />
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex items-center justify-center gap-6 py-5 bg-black/50">
+                        {/* Switch camera */}
+                        <button
+                          onClick={switchCamera}
+                          className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                          title={t('Switch Camera')}
+                        >
+                          <RotateCcw className="w-5 h-5" />
+                        </button>
+                        {/* Capture button */}
+                        <button
+                          onClick={capturePhoto}
+                          className="w-16 h-16 rounded-full bg-white border-4 border-white/30 hover:scale-105 transition-transform shadow-xl flex items-center justify-center"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-white hover:bg-gray-100 transition-colors" />
+                        </button>
+                        {/* Close */}
+                        <button
+                          onClick={closeCamera}
+                          className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                          title={t('Cancel')}
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Hidden canvas for capture */}
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

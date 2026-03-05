@@ -1,0 +1,50 @@
+
+============================================================
+  1. FILES ON DISK
+============================================================
+  [PASS] YOLO best.pt: 21.5 MB
+  [FAIL] EfficientNet dir: NOT FOUND at D:\Krishi Kavach\DKTE_KK\crop_project\pretrained_models\efficientnet_plant.pth\efficientnet_plant
+  [FAIL] MobileNet dir: NOT FOUND at D:\Krishi Kavach\DKTE_KK\crop_project\pretrained_models\mobilenetv2_plant.pth\mobilenetv2_plant
+  [PASS] class_names.json: 0.0 MB
+
+============================================================
+  2. CLASS NAMES
+============================================================
+  [PASS] Loaded 38 classes
+  [INFO] Sample: ['Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust'] ... ['Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus', 'Tomato___healthy']
+
+============================================================
+  3. YOLO MODEL
+============================================================
+  [PASS] YOLO loaded | 30 classes
+  [INFO] ['banana_bract_mosaic_virus', 'banana_cordana', 'banana_healthy', 'banana_insectpest', 'banana_moko', 'banana_panama', 'banana_pestalotiopsis', 'banana_sigatoka', 'banana_yb_sigatoka', 'cauliflower_Blackrot', 'cauliflower_bacterial_spot_rot', 'cauliflower_downy_mildew', 'cauliflower_healthy', 'chilli_anthracnose', 'chilli_healthy', 'chilli_leafcurl', 'chilli_leafspot', 'chilli_whitefly', 'chilli_yellowish', 'groundnut_early_leaf_spot', 'groundnut_early_rust', 'groundnut_healthy', 'groundnut_late_leaf_spot', 'groundnut_nutrition_deficiency', 'groundnut_rust', 'radish_black_leaf_spot', 'radish_downey_mildew', 'radish_flea_beetle', 'radish_healthy', 'radish_mosaic']
+  [PASS] YOLO inference OK | detected 0 objects on dummy image
+
+============================================================
+  4. EFFICIENTNET MODEL
+============================================================
+  [FAIL] EfficientNet error: FileNotFoundError: [Errno 2] No such file or directory: 'D:\\Krishi Kavach\\DKTE_KK\\crop_project\\pretrained_models\\efficientnet_plant.pth\\efficientnet_plant'
+
+============================================================
+  5. MOBILENETV2 MODEL
+============================================================
+  [FAIL] MobileNetV2 error: FileNotFoundError: [Errno 2] No such file or directory: 'D:\\Krishi Kavach\\DKTE_KK\\crop_project\\pretrained_models\\mobilenetv2_plant.pth\\mobilenetv2_plant'
+
+============================================================
+  6. LIVE API - localhost:8000
+============================================================
+  [PASS] Server online | yolo_active=True | classifier_active=False
+  [INFO] classifier_classes count: 38
+  [PASS] /predict [banana] -> 'revolver, six-gun, six-shooter' (2.5%) via [vit_fallback]
+  [PASS] /predict [tomato] -> 'revolver, six-gun, six-shooter' (2.5%) via [vit_fallback]
+
+============================================================
+  SUMMARY
+============================================================
+  [PASS] YOLO
+  [FAIL] EfficientNet
+  [FAIL] MobileNetV2
+  [PASS] Live API
+
+  Result: 2/4 checks passed
+

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -141,19 +141,16 @@ const FarmerDashboard = () => {
   const [diseaseRisk, setDiseaseRisk] = useState(22);
   const [marketTrend, setMarketTrend] = useState(71);
   const [profitConf, setProfitConf] = useState(82);
+  const [nearbyMarkets, setNearbyMarkets] = useState([]);
+  const [agronomistRadius, setAgronomistRadius] = useState(50); // adjustable agronomist radius in km
+  const [marketRadius, setMarketRadius] = useState(50); // adjustable market radius in km
+  const [loadingMarkets, setLoadingMarkets] = useState(false);
   const heroRef = useRef(null);
 
   // Farmer location for map
   const farmerLat = user?.location?.coordinates?.[1];
   const farmerLng = user?.location?.coordinates?.[0];
   const mapCenter = farmerLat && farmerLng ? [farmerLat, farmerLng] : [20.5937, 78.9629];
-
-  // Dummy nearby markets (since no market geolocation API exists yet)
-  const nearbyMarkets = [
-    { name: 'Nashik APMC', lat: mapCenter[0] + 0.08, lng: mapCenter[1] + 0.06, distance: '12 km' },
-    { name: 'Pune Mandi', lat: mapCenter[0] - 0.12, lng: mapCenter[1] + 0.09, distance: '18 km' },
-    { name: 'Local Weekly Market', lat: mapCenter[0] + 0.04, lng: mapCenter[1] - 0.07, distance: '6 km' },
-  ];
 
   // ── Tip rotation ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -182,13 +179,21 @@ const FarmerDashboard = () => {
     }
   }, [user]);
 
-  // ── Fetch agronomists ──────────────────────────────────────────────────
+  // ── Fetch agronomists (geo-based adjustable radius) ──────────────────────────────
   useEffect(() => {
     const fetchLocalAgronomists = async () => {
       try {
         setLoadingAgronomists(true);
-        const response = await agronomistAPI.findLocalExperts();
-        setLocalAgronomists(response.data);
+        const params = {};
+        if (farmerLat && farmerLng) {
+          params.lat = farmerLat;
+          params.lng = farmerLng;
+          params.radius = agronomistRadius;
+        }
+        const response = await agronomistAPI.findLocalExperts(params);
+        // Handle new response shape: { experts: [...] } or old array format
+        const experts = response.data?.experts || response.data || [];
+        setLocalAgronomists(experts);
         setAgronomistError('');
       } catch (err) {
         setLocalAgronomists([]);
@@ -200,7 +205,35 @@ const FarmerDashboard = () => {
     fetchLocalAgronomists();
     // Fetch crops for hero section
     cropAPI.getCrops().then(r => setMyCrops(r.data || [])).catch(() => { });
-  }, []);
+  }, [farmerLat, farmerLng, agronomistRadius]);
+
+  // ── Fetch nearby markets (adjustable radius) ──────────────────────────────
+  useEffect(() => {
+    const fetchNearbyMarkets = async () => {
+      if (!farmerLat || !farmerLng) return;
+      try {
+        setLoadingMarkets(true);
+        const response = await marketAPI.getNearbyMarketPrices({
+          lat: farmerLat,
+          lng: farmerLng,
+          radius: marketRadius,
+        });
+        const locations = response.data?.locations || [];
+        setNearbyMarkets(locations.map(loc => ({
+          name: `${loc.district} - ${loc.taluka}`,
+          lat: loc.geo?.coordinates?.[1],
+          lng: loc.geo?.coordinates?.[0],
+          distance: loc.distanceKm ? `${loc.distanceKm} km` : '—',
+          district: loc.district,
+        })));
+      } catch {
+        setNearbyMarkets([]);
+      } finally {
+        setLoadingMarkets(false);
+      }
+    };
+    fetchNearbyMarkets();
+  }, [farmerLat, farmerLng, marketRadius]);
 
   // ── Helpers ────────────────────────────────────────────────────────────
   const getInitials = (name = '') =>
@@ -351,16 +384,46 @@ const FarmerDashboard = () => {
                   ? 'bg-blue-600 text-white border-blue-600 shadow'
                   : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-blue-50'}`}
               >
-                <UserIcon size={14} /> {t('Show Agronomists')}
+                <UserIcon size={14} /> {t('Agronomists')}
               </button>
+              {/* Agronomist radius slider — only shown when agronomists layer is active */}
+              {mapLayer === 'agronomists' && (
+                <div className="flex items-center gap-2 ml-1">
+                  <span className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{agronomistRadius} km</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={200}
+                    step={5}
+                    value={agronomistRadius}
+                    onChange={e => setAgronomistRadius(Number(e.target.value))}
+                    className="w-24 h-1.5 accent-blue-500 cursor-pointer"
+                  />
+                </div>
+              )}
               <button
                 onClick={() => setMapLayer(l => l === 'markets' ? 'none' : 'markets')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 ${mapLayer === 'markets'
                   ? 'bg-amber-600 text-white border-amber-600 shadow'
                   : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-amber-50'}`}
               >
-                <Store size={14} /> {t('Show Markets')}
+                <Store size={14} /> {t('Markets')}
               </button>
+              {/* Market radius slider — only shown when markets layer is active */}
+              {mapLayer === 'markets' && (
+                <div className="flex items-center gap-2 ml-1">
+                  <span className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{marketRadius} km</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={200}
+                    step={5}
+                    value={marketRadius}
+                    onChange={e => setMarketRadius(Number(e.target.value))}
+                    className="w-24 h-1.5 accent-amber-500 cursor-pointer"
+                  />
+                </div>
+              )}
               <button
                 onClick={() => setShowMap(v => !v)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
@@ -402,6 +465,36 @@ const FarmerDashboard = () => {
                         </div>
                       </Popup>
                     </Marker>
+
+                    {/* Adjustable radius circle for agronomists */}
+                    {mapLayer === 'agronomists' && (
+                      <Circle
+                        center={[farmerLat, farmerLng]}
+                        radius={agronomistRadius * 1000}
+                        pathOptions={{
+                          color: '#2563eb',
+                          fillColor: '#3b82f6',
+                          fillOpacity: 0.08,
+                          weight: 2,
+                          dashArray: '8 4',
+                        }}
+                      />
+                    )}
+
+                    {/* Adjustable radius circle for markets */}
+                    {mapLayer === 'markets' && (
+                      <Circle
+                        center={[farmerLat, farmerLng]}
+                        radius={marketRadius * 1000}
+                        pathOptions={{
+                          color: '#b45309',
+                          fillColor: '#f59e0b',
+                          fillOpacity: 0.08,
+                          weight: 2,
+                          dashArray: '8 4',
+                        }}
+                      />
+                    )}
                   </>
                 )}
 
@@ -417,10 +510,15 @@ const FarmerDashboard = () => {
                           <p className="font-extrabold text-gray-900 text-sm mb-0.5 flex items-center gap-1.5">
                             <UserIcon size={14} className="text-blue-600" /> {ag.fullName}
                           </p>
-                          <p className="text-xs text-blue-600 font-semibold mb-2">Verified Agronomist</p>
+                          <p className="text-xs text-blue-600 font-semibold mb-1">Verified Agronomist</p>
+                          {ag.distanceKm != null && (
+                            <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                              <MapPin size={10} /> {ag.distanceKm} km away
+                            </p>
+                          )}
                           {ag.mobileNumber && (
                             <div className="flex gap-2">
-                              <a href={`tel:${agro.mobileNumber}`} className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg">
+                              <a href={`tel:${ag.mobileNumber}`} className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg">
                                 <Zap size={10} /> Call
                               </a>
                               <a href={`https://wa.me/91${ag.mobileNumber}`} target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1 bg-[#25D366] text-white text-[10px] font-bold py-1.5 rounded-lg">
@@ -436,19 +534,21 @@ const FarmerDashboard = () => {
 
                 {/* Market markers */}
                 {mapLayer === 'markets' && nearbyMarkets.map((m, i) => (
-                  <Marker key={i} position={[m.lat, m.lng]} icon={marketIcon}>
-                    <Popup>
-                      <div className="p-3 min-w-[160px]">
-                        <p className="font-extrabold text-gray-900 text-sm mb-0.5 flex items-center gap-1.5">
-                          <Store size={14} className="text-amber-700" /> {m.name}
-                        </p>
-                        <p className="text-xs text-amber-600 font-semibold mb-2 flex items-center gap-1">
-                          <MapPin size={12} /> ~{m.distance}
-                        </p>
-                        <Link to="/farmer/market" className="block text-center bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg">View Prices</Link>
-                      </div>
-                    </Popup>
-                  </Marker>
+                  m.lat && m.lng ? (
+                    <Marker key={i} position={[m.lat, m.lng]} icon={marketIcon}>
+                      <Popup>
+                        <div className="p-3 min-w-[160px]">
+                          <p className="font-extrabold text-gray-900 text-sm mb-0.5 flex items-center gap-1.5">
+                            <Store size={14} className="text-amber-700" /> {m.name}
+                          </p>
+                          <p className="text-xs text-amber-600 font-semibold mb-2 flex items-center gap-1">
+                            <MapPin size={12} /> ~{m.distance}
+                          </p>
+                          <Link to="/farmer/market" className="block text-center bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg">View Prices</Link>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ) : null
                 ))}
               </MapContainer>
 
@@ -553,8 +653,8 @@ const FarmerDashboard = () => {
                 <UserIcon size={20} />
               </div>
               <div>
-                <h2 className="text-lg font-extrabold text-white">{t('Agronomists in Your District')}</h2>
-                <p className="text-emerald-200 text-xs mt-0.5">{t('Connect with verified agronomists available in your district for quick advice')}</p>
+                <h2 className="text-lg font-extrabold text-white">{t('Agronomists Within')} {agronomistRadius} km</h2>
+                <p className="text-emerald-200 text-xs mt-0.5">{t('Verified agronomists near your farm location')}{localAgronomists.length > 0 ? ` · ${localAgronomists.length} found` : ''}</p>
               </div>
             </div>
             <Link to="/farmer/crops" className="hidden sm:inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all">
@@ -626,7 +726,9 @@ const FarmerDashboard = () => {
 
                     <div className="flex items-center gap-1.5 mb-3">
                       <span className="w-2 h-2 bg-emerald-400 rounded-full pulse-dot" />
-                      <span className="text-xs text-emerald-600 font-semibold">Available Now</span>
+                      <span className="text-xs text-emerald-600 font-semibold">
+                        {agro.distanceKm != null ? `${agro.distanceKm} km away` : 'Available Now'}
+                      </span>
                     </div>
 
                     {/* Actions */}

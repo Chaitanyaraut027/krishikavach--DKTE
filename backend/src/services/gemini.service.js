@@ -679,3 +679,64 @@ All text in ${langName}. Use ASCII digits. No markdown.`;
 
   return normalizeAndParseJSON(response.choices[0].message.content);
 };
+// ─────────────────────────────────────────────────────────────────────────────
+//  7. GOVERNMENT SCHEMES ELIGIBILITY
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * @param {object} farmerDetails - { state, crop, landSize, category }
+ * @param {string} language      - "en" | "hi" | "mr"
+ * @returns {object}             - { schemes: [...], aiGuidance }
+ */
+export const getEligibleSchemes = async (farmerDetails, language = "en", userApiKey = null) => {
+  const client = createClient(userApiKey);
+  const langName = LANGUAGE_NAMES[language] || "English";
+  const { state, crop, landSize, category, soilType } = farmerDetails;
+
+  const prompt = `You are an expert Indian agricultural policy advisor with deep knowledge of all central and state government schemes for farmers.
+
+Farmer Profile:
+- State: ${state}
+- Primary Crop: ${crop}
+- Land Size: ${landSize} acres
+- Category: ${category}
+${soilType ? `- Soil Type: ${soilType}` : ""}
+
+Task: Identify ALL government schemes (central + state) this farmer is eligible for. Include both well-known and lesser-known schemes.
+
+Return ONLY a valid JSON object (no markdown, no code fences):
+{
+  "schemes": [
+    {
+      "schemeName": "Full official name of the scheme in ${langName}",
+      "level": "Central" or "State",
+      "briefDescription": "2-3 sentence description of the scheme and its benefits in ${langName}",
+      "eligibilityReason": "Why this specific farmer qualifies based on their profile in ${langName}",
+      "estimatedBenefit": "Specific monetary benefit or subsidy amount in INR in ${langName}",
+      "deadline": "Application deadline or 'Year-round' in ${langName}",
+      "requiredDocuments": ["Document 1 in ${langName}", "Document 2", "Document 3"],
+      "applyLink": "Official website URL to apply (use real URLs like pmkisan.gov.in, etc.)"
+    }
+  ],
+  "aiGuidance": "Personalized 3-4 sentence advice for this farmer on which schemes to prioritize and how to maximize benefits in ${langName}"
+}
+
+RULES:
+- Include 6-10 schemes the farmer is genuinely eligible for
+- Mix central government schemes (PM-KISAN, PMFBY, KCC, etc.) and state-specific schemes for ${state}
+- estimatedBenefit must include specific INR amounts where applicable
+- requiredDocuments should list 3-5 real documents needed
+- applyLink should be the real official URL (use pmkisan.gov.in, pmfby.gov.in, etc.)
+- All text in ${langName}
+- Be accurate about eligibility based on land size, category, and soil type (some schemes are for specific soil conditions like saline or desert areas)
+- For ${category} category farmers, highlight any special provisions or extra benefits
+CRITICAL: Use only ASCII digits (0-9) inside the JSON. Never use Devanagari or regional numerals.`;
+
+  const response = await client.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3,
+    max_tokens: 3000,
+  });
+
+  return normalizeAndParseJSON(response.choices[0].message.content);
+};

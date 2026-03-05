@@ -8,6 +8,11 @@ const Agronomists = () => {
   const [statusUpdating, setStatusUpdating] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [viewingDocument, setViewingDocument] = useState(null);
+  const [zoom, setZoom] = useState(1);
+
+  const handleZoom = (delta) => {
+    setZoom(prev => Math.min(Math.max(prev + delta, 0.5), 3));
+  };
 
   useEffect(() => {
     fetchAgronomists();
@@ -145,15 +150,15 @@ const Agronomists = () => {
                       <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-400">{agronomist.experience || 0} yrs</td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs font-bold rounded-full border ${agronomist.status === 'verified' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                            agronomist.status === 'rejected' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                              'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          agronomist.status === 'rejected' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                            'bg-amber-500/20 text-amber-400 border-amber-500/30'
                           }`}>
                           {agronomist.status === 'verified' ? '✓' : agronomist.status === 'rejected' ? '✗' : '⏳'} {agronomist.status || 'pending'}
                         </span>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap text-sm">
                         {agronomist.idProof?.url ? (
-                          <button onClick={() => setViewingDocument(agronomist.idProof)}
+                          <button onClick={() => { setViewingDocument(agronomist.idProof); setZoom(1); }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded-xl font-semibold transition-colors text-xs">
                             👁️ {agronomist.idProof?.contentType === 'application/pdf' ? 'View PDF' : 'View Image'}
                           </button>
@@ -195,27 +200,155 @@ const Agronomists = () => {
 
       {/* Document Viewer Modal */}
       {viewingDocument && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingDocument(null)}>
-          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gradient-to-r from-slate-800 to-gray-900 text-white px-6 py-4 flex justify-between items-center rounded-t-3xl">
-              <h3 className="text-lg font-extrabold">
-                📄 {viewingDocument.contentType === 'application/pdf' ? 'ID Proof — PDF' : 'ID Proof — Image'}
-              </h3>
-              <button onClick={() => setViewingDocument(null)} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/20 text-2xl transition-colors">×</button>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[9999] p-4" onClick={() => setViewingDocument(null)}>
+          <div className="bg-slate-900 border border-white/10 rounded-[32px] max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-slate-800/50 px-8 py-6 flex justify-between items-center border-b border-white/10">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-xl border border-blue-500/30">
+                  {viewingDocument.contentType?.includes('pdf') ? '📄' : '🖼️'}
+                </div>
+                <div>
+                  <h3 className="text-white font-black tracking-tight text-lg">
+                    {viewingDocument.contentType?.includes('pdf') ? 'ID Proof Document — PDF' : 'ID Proof — Image'}
+                  </h3>
+                  <p className="text-gray-400 text-xs mt-0.5">Registration verification document</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Zoom Controls */}
+                <div className="flex items-center bg-white/10 rounded-xl border border-white/10 p-1 mr-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleZoom(-0.2); }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-white transition-all font-bold"
+                    title="Zoom Out"
+                  >
+                    −
+                  </button>
+                  <span className="px-3 text-xs font-mono text-blue-400 font-bold min-w-[60px] text-center">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleZoom(0.2); }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-white transition-all font-bold"
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoom(1); }}
+                    className="ml-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-500/20 text-blue-400 transition-all text-xs font-bold"
+                    title="Reset Zoom"
+                  >
+                    ↺
+                  </button>
+                </div>
+
+                <a
+                  href={viewingDocument.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  New Tab
+                </a>
+                <button
+                  onClick={() => setViewingDocument(null)}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-2xl transition-all"
+                >
+                  ×
+                </button>
+              </div>
             </div>
-            <div className="p-6">
-              {viewingDocument.contentType === 'application/pdf' ? (
-                <object data={`${viewingDocument.url}#toolbar=1`} type="application/pdf" className="w-full h-[75vh] border-0 rounded-2xl" title="PDF Viewer">
-                  <a href={viewingDocument.url} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold">
-                    ⬇️ Download PDF
-                  </a>
-                </object>
+
+            {/* Modal Body */}
+            <div className="flex-1 p-4 overflow-auto bg-slate-950/50 flex flex-col justify-center items-center" style={{ minHeight: '60vh' }}>
+              {viewingDocument.contentType?.includes('pdf') ? (
+                <div className="w-full flex flex-col items-center gap-6">
+                  {/* Cloudinary PDF Preview - Convert first page to image for reliable display */}
+                  <div className="relative group max-w-full">
+                    <img
+                      src={viewingDocument.url.replace('.pdf', '.jpg')}
+                      alt="ID Proof Preview"
+                      className="max-w-full max-h-[65vh] rounded-xl object-contain shadow-2xl border border-white/10 transition-transform duration-200 ease-out"
+                      style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://placehold.co/600x800/1e293b/white?text=PDF+Document+Ready+-+Download+below';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-sm">
+                      <a
+                        href={viewingDocument.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-6 py-3 bg-white text-black font-black rounded-xl shadow-xl flex items-center gap-2 transform scale-90 group-hover:scale-100 transition-transform"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View Full PDF
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-gray-400 text-xs text-center max-w-md">
+                      Showing a secure image preview of the first page. <br />
+                      Click the preview or buttons below to view/download the full document.
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <div className="flex justify-center">
-                  <img src={viewingDocument.url} alt="ID Proof" className="max-w-full max-h-[75vh] rounded-2xl object-contain shadow-lg" />
+                <div className="relative overflow-hidden w-full h-full flex items-center justify-center">
+                  <img
+                    src={viewingDocument.url}
+                    alt="ID Proof"
+                    className="max-w-full max-h-[75vh] rounded-2xl object-contain shadow-2xl border border-white/5 transition-transform duration-200 ease-out"
+                    style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+                  />
                 </div>
               )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-8 py-5 bg-slate-800/30 border-t border-white/10 flex justify-between items-center">
+              <div className="flex gap-3">
+                <a
+                  href={viewingDocument.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  View Full Document
+                </a>
+                <a
+                  href={viewingDocument.url}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm border border-white/10 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download
+                </a>
+              </div>
+              <button
+                onClick={() => setViewingDocument(null)}
+                className="px-8 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all text-sm border border-white/5"
+              >
+                Close Preview
+              </button>
             </div>
           </div>
         </div>
