@@ -4,6 +4,7 @@ import {
     getFarmProfile,
     saveFarmProfile,
     checkEligibility,
+    checkEligibilityLegacy,
     getAllSchemes,
 } from '../controllers/schemes.controller.js';
 
@@ -13,5 +14,6 @@ router.get('/all', protect, getAllSchemes);
 router.get('/profile', protect, getFarmProfile);
 router.post('/profile', protect, saveFarmProfile);
 router.post('/check-eligibility', protect, checkEligibility);
+router.post('/eligibility', protect, checkEligibilityLegacy);
 
 export default router;

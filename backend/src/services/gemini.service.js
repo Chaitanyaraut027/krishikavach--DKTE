@@ -595,3 +595,166 @@ RULES:
 
   return data;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  6. GOVERNMENT SCHEMES ELIGIBILITY CHECK
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * @param {string} state          - e.g. "Maharashtra"
+ * @param {string} crop           - e.g. "Soybean"
+ * @param {number} landSize       - e.g. 2
+ * @param {string} landUnit       - e.g. "acres"
+ * @param {string} category       - "Small" | "Marginal" | "Medium" | "Large"
+ * @param {string} additionalInfo - e.g. "Has drip irrigation, organic farm"
+ * @returns {object}              - { schemes: [...] }
+ */
+export const getEligibleSchemes = async (state, crop, landSize, landUnit, category, additionalInfo = "") => {
+  const client = createClient();
+
+  const prompt = `You are an expert advisor on Indian Agricultural Government Schemes.
+Identify all relevant Central and State Government schemes for a farmer based on these details:
+State: ${state}
+Crop: ${crop}
+Land Size: ${landSize} ${landUnit}
+Farmer Category: ${category}
+Additional Information: ${additionalInfo}
+
+Return ONLY a valid JSON object matching exactly this structure:
+{
+  "schemes": [
+    {
+      "schemeName": "Name of the Scheme (e.g. PM-KISAN, PMFBY, etc.)",
+      "level": "Central or State",
+      "briefDescription": "1-2 lines summarizing the scheme and its primary benefit",
+      "eligibilityReason": "Why this specific farmer matches the criteria (e.g. Because land size is < 2 hectares)",
+      "estimatedBenefit": "e.g. ₹6,000/year, or 50% subsidy on equipment",
+      "requiredDocuments": ["Aadhar Card", "7/12 Extract", "Bank Passbook", etc...],
+      "applyLink": "If an official portal exists (e.g. pmkisan.gov.in), provide it, else put 'Local CSC / Mandi'",
+      "deadline": "If there is a known seasonal deadline say it, otherwise 'Ongoing'"
+    }
+  ],
+  "aiGuidance": "A 1-2 sentence personalized encouraging advice summary for the farmer regarding these schemes."
+}
+
+RULES:
+- Respond in English.
+- Include 3 to 6 Highly Relevant schemes. Do not hallucinate schemes that do not exist.
+- Rely on actual well-known Indian schemes like PM-KISAN, PMFBY, PM-KUSUM, PKVY, SHC, SMAM, and major state schemes.
+- Use ONLY ASCII characters/quotes inside the JSON.`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 2500,
+    });
+    return normalizeAndParseJSON(response.choices[0].message.content);
+  } catch (error) {
+    console.warn("Groq API failed for schemes, using robust fallback data.", error.message);
+
+    const allSchemes = [
+      {
+        "schemeName": "PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)",
+        "level": "Central",
+        "briefDescription": "Income support scheme for all landholding farmers' families in the country.",
+        "eligibilityReason": `Matching logic for ${state} and ${category} farmer.`,
+        "estimatedBenefit": "₹6,000/year",
+        "requiredDocuments": ["Aadhar Card", "7/12 Extract", "Bank Passbook"],
+        "applyLink": "https://pmkisan.gov.in/",
+        "deadline": "Ongoing"
+      },
+      {
+        "schemeName": "PMFBY (Pradhan Mantri Fasal Bima Yojana)",
+        "level": "Central",
+        "briefDescription": "Provides insurance coverage and financial support to farmers in the event of crop loss.",
+        "eligibilityReason": `Cultivating ${crop} makes you eligible for crop loss insurance.`,
+        "estimatedBenefit": "Up to 50% subsidized insurance premium.",
+        "requiredDocuments": ["Aadhar Card", "7/12 Extract", "Crop Sowing Certificate"],
+        "applyLink": "https://pmfby.gov.in/",
+        "deadline": "Seasonal (Before Sowing)"
+      },
+      {
+        "schemeName": "Soil Health Card Scheme",
+        "level": "Central",
+        "briefDescription": "Free testing of soil to understand nutrient deficiencies customized for your crop.",
+        "eligibilityReason": `Highly recommended for optimizing yields for ${crop}.`,
+        "estimatedBenefit": "Free Soil Testing & Report",
+        "requiredDocuments": ["Aadhar Card", "Soil Sample", "Land Registration Details"],
+        "applyLink": "https://soilhealth.dac.gov.in/",
+        "deadline": "Ongoing"
+      },
+      {
+        "schemeName": "PM-KUSUM (Pradhan Mantri Kisan Urja Suraksha)",
+        "level": "Central",
+        "briefDescription": "Subsidies for setting up standalone solar pumps to ensure reliable irrigation.",
+        "eligibilityReason": "Provides solar pumps at subsidized rates to reduce reliance on grid power.",
+        "estimatedBenefit": "Up to 60% subsidy on solar water pumps.",
+        "requiredDocuments": ["Aadhar Card", "7/12 Extract", "Bank Passbook", "Passport Size Photo"],
+        "applyLink": "https://pmkusum.mnre.gov.in/",
+        "deadline": "Ongoing",
+        "condition": (s, c, cat, info) => info.toLowerCase().includes('irrigation') || cat === 'Marginal' || cat === 'Small'
+      },
+      {
+        "schemeName": "PKVY (Paramparagat Krishi Vikas Yojana)",
+        "level": "Central",
+        "briefDescription": "Promotes organic farming through cluster approach and Participatory Guarantee System.",
+        "eligibilityReason": `Ideal for ${category} farmers transitioning to organic ${crop} farming.`,
+        "estimatedBenefit": "₹50,000/hectare for 3 years",
+        "requiredDocuments": ["Aadhar Card", "Land Records"],
+        "applyLink": "https://pgsindia-ncof.gov.in/",
+        "deadline": "Ongoing",
+        "condition": (s, c, cat, info) => info.toLowerCase().includes('organic') || c.toLowerCase() === 'cauliflower' || c.toLowerCase() === 'radish'
+      },
+      {
+        "schemeName": "SMAM (Agricultural Mechanization)",
+        "level": "Central",
+        "briefDescription": "Financial assistance for procurement of agriculture machinery and equipment.",
+        "eligibilityReason": `Suitable for automating operations for your ${landSize} ${landUnit} fields.`,
+        "estimatedBenefit": "50-80% subsidy on agricultural machinery.",
+        "requiredDocuments": ["Aadhar Card", "Bank Passbook", "Quotation of Machinery"],
+        "applyLink": "https://agrimachinery.nic.in/",
+        "deadline": "Ongoing",
+        "condition": (s, c, cat, info) => cat.toLowerCase().includes('medium') || cat.toLowerCase().includes('large')
+      },
+      {
+        "schemeName": "Magel Tyala Shet Tale (Maharashtra)",
+        "level": "State",
+        "briefDescription": "Subsidized farm ponds for predictable irrigation in drought-prone areas.",
+        "eligibilityReason": `Available for ${category} farmers in ${state} to capture rainwater.`,
+        "estimatedBenefit": "Up to ₹50,000 subsidy per farm pond.",
+        "requiredDocuments": ["Aadhar Card", "7/12 & 8A Extract", "Caste Certificate (if applicable)"],
+        "applyLink": "https://mahadbt.maharashtra.gov.in/",
+        "deadline": "Apply before Monsoon",
+        "condition": (s, c, cat, info) => s.toLowerCase() === 'maharashtra' || s.toLowerCase() === 'mh'
+      },
+      {
+        "schemeName": "Bhausaheb Fundkar Orchard Planting Scheme",
+        "level": "State",
+        "briefDescription": "100% subsidy for horticulture and fruit crop plantations.",
+        "eligibilityReason": `Ideal for planting fruit crops like ${crop} in ${state}.`,
+        "estimatedBenefit": "100% subsidy (50% in year 1, 30% year 2, 20% year 3)",
+        "requiredDocuments": ["Aadhar Card", "7/12 Extract", "Bank Passbook"],
+        "applyLink": "https://mahadbt.maharashtra.gov.in/",
+        "deadline": "June-August",
+        "condition": (s, c, cat, info) => (s.toLowerCase() === 'maharashtra' || s.toLowerCase() === 'mh') && (c.toLowerCase() === 'banana' || info.toLowerCase().includes('fruit'))
+      }
+    ];
+
+    let matchedSchemes = allSchemes.filter(scheme => {
+      if (!scheme.condition) return true;
+      return scheme.condition(state, crop, category, additionalInfo);
+    });
+
+    matchedSchemes = matchedSchemes.map(s => {
+      const { condition, ...rest } = s;
+      return rest;
+    }).slice(0, 5); // Take max 5 schemes to keep it relevant
+
+    return {
+      "schemes": matchedSchemes,
+      "aiGuidance": `Currently verifying ${matchedSchemes.length} reliable schemes matching a ${category} farmer growing ${crop} in ${state}.`
+    };
+  }
+};
+

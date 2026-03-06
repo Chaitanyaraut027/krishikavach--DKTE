@@ -211,6 +211,7 @@ export const schemesAPI = {
   getProfile: () => api.get('/schemes/profile'),
   saveProfile: (data) => api.post('/schemes/profile', data),
   checkEligibility: (data) => api.post('/schemes/check-eligibility', data),
+  checkEligibilityLegacy: (data) => api.post('/schemes/eligibility', data),
   getAllSchemes: () => api.get('/schemes/all'),
 };
 

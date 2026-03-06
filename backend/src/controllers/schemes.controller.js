@@ -1,6 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import FarmProfile from '../models/farmProfile.model.js';
 import { checkEligibilityWithAI, SCHEMES_DATABASE } from '../services/schemes.service.js';
+import { getEligibleSchemes } from '../services/gemini.service.js';
+import User from '../models/user.model.js';
 
 // ── GET /api/v1/schemes/profile  ──────────────────────────────────────────
 export const getFarmProfile = asyncHandler(async (req, res) => {
@@ -51,6 +53,27 @@ export const checkEligibility = asyncHandler(async (req, res) => {
     const eligibleSchemes = await checkEligibilityWithAI(profile, language);
     console.log('Returning eligible schemes to frontend:', eligibleSchemes.length);
     res.json({ schemes: eligibleSchemes, total: eligibleSchemes.length });
+});
+
+// ── POST /api/v1/schemes/eligibility  ─────────────────────────────────────
+export const checkEligibilityLegacy = asyncHandler(async (req, res) => {
+    const { category, landSize, landUnit = 'acres', state: bodyState, crop, additionalInfo } = req.body;
+
+    // Use profile location if caller didn't pass one
+    let state = bodyState;
+    if (!state) {
+        const user = await User.findById(req.user._id).lean();
+        state = user?.address?.state || "Maharashtra";
+    }
+
+    if (!category || !landSize || !crop || !state) {
+        res.status(400);
+        throw new Error('category, landSize, crop, and state are required.');
+    }
+
+    const data = await getEligibleSchemes(state, crop, landSize, landUnit, category, additionalInfo);
+
+    res.json({ success: true, data });
 });
 
 // ── GET /api/v1/schemes/all  ──────────────────────────────────────────────

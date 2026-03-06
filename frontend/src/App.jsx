@@ -22,6 +22,7 @@ import DiseaseReports from './pages/farmer/DiseaseReports';
 import Weather from './pages/farmer/Weather';
 import Market from './pages/farmer/Market';
 import GovernmentSchemes from './pages/farmer/GovernmentSchemes';
+import Schemes from './pages/farmer/Schemes';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
