@@ -266,96 +266,106 @@ export const getExternalProcessingCenters = async (req, res) => {
                 }
             }).limit(50);
         }
+        // 2. Fetch fresh data in the background if count is low or data is old
+        const needsUpdate = localCenters.length < 5;
 
-        // 2. If DB results are low, fetch fresh data from Google Places (Primary for real facilities)
-        if (localCenters.length < 10 && latitude && longitude) {
-            console.log('[*] Low local results. Fetching fresh facilities from Google Places...');
-            await fetchNearbyFacilities(latitude, longitude, radius * 1000);
-
-            // Re-query local DB to include new Google results
-            localCenters = await ProcessingCenter.find({
-                location: {
-                    $near: {
-                        $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
-                        $maxDistance: radius * 1000
-                    }
+        const fetchExternalData = async () => {
+            // 2. Fetch from Google Places (Primary for real facilities)
+            if (needsUpdate && latitude && longitude) {
+                try {
+                    console.log('[*] Low local results or update needed. Fetching from Google Places in background...');
+                    await fetchNearbyFacilities(latitude, longitude, radius * 1000);
+                } catch (err) {
+                    console.error("[-] Google Places fetch error:", err.message);
                 }
-            }).limit(50);
-        }
+            }
 
-        // 3. Optional: Call our Python Hybrid Service (Scraper + OSM) for additional coverage
-        const pythonServiceUrl = `${ML_SERVER_URL}/search-facilities?lat=${latitude}&lon=${longitude}&radius=${radius}${city ? `&city=${city}` : ''}`;
-        console.log(`[*] Checking hybrid facilities from: ${pythonServiceUrl}`);
-
-        console.log(`[*] Fetching hybrid facilities from: ${pythonServiceUrl}`);
-
-        let externalResults = [];
-        try {
-            const response = await _axios.get(pythonServiceUrl);
-            if (response.data && response.data.success) {
-                externalResults = response.data.data;
-
-                // 3. Persist external results to DB for future use
-                for (const center of externalResults) {
-                    if (!center.id) continue; // Skip if no valid external ID to prevent unique index violation
-
-                    await ProcessingCenter.findOneAndUpdate(
-                        { externalId: center.id },
-                        {
-                            name: center.name,
-                            type: center.type,
-                            city: center.city,
-                            contact: center.contact,
-                            image: center.image,
-                            source: center.source,
-                            location: {
-                                type: "Point",
-                                coordinates: center.location
+            // 3. Call Python Hybrid Service (Scraper + OSM)
+            const pythonServiceUrl = `${ML_SERVER_URL}/search-facilities?lat=${latitude}&lon=${longitude}&radius=${radius}${city ? `&city=${city}` : ''}`;
+            try {
+                console.log(`[*] Triggering hybrid fetch: ${pythonServiceUrl}`);
+                const response = await _axios.get(pythonServiceUrl, { timeout: 15000 }); // Increase timeout to 15s for scraper
+                if (response.data && response.data.success) {
+                    const externalResults = response.data.data;
+                    for (const center of externalResults) {
+                        if (!center.id) continue;
+                        await ProcessingCenter.findOneAndUpdate(
+                            { externalId: center.id },
+                            {
+                                name: center.name,
+                                type: center.type,
+                                city: center.city,
+                                contact: center.contact,
+                                image: center.image,
+                                source: center.source,
+                                location: {
+                                    type: "Point",
+                                    coordinates: center.location
+                                },
+                                lastUpdated: new Date()
                             },
-                            lastUpdated: new Date()
-                        },
-                        { upsert: true, new: true }
-                    );
-                }
-
-                // Refresh local search to include newly added ones
-                localCenters = await ProcessingCenter.find({
-                    location: {
-                        $near: {
-                            $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
-                            $maxDistance: radius * 1000
-                        }
+                            { upsert: true, new: true }
+                        );
                     }
-                }).limit(50);
+                }
+            } catch (err) {
+                console.error("[-] Python Service Error (Background):", err.message);
             }
-        } catch (err) {
-            console.error("[-] Python Service Error:", err.message);
-            if (localCenters.length === 0) {
-                localCenters = [];
-            }
+        };
+
+        // If we have some results, return them immediately and fetch fresh ones in background
+        if (localCenters.length > 3) {
+            console.log(`[+] Returning ${localCenters.length} cached results immediately.`);
+            // Trigger background update but don't await
+            fetchExternalData().catch(err => console.error("[-] Background fetch failed:", err));
+
+            return res.status(200).json({
+                success: true,
+                count: localCenters.length,
+                data: localCenters.map(prepareCenterResponse)
+            });
         }
+
+        // If we have nothing, we must wait at least for the first attempt or timeout
+        console.log(`[*] No cached results. Waiting for external fetch...`);
+        await fetchExternalData();
+
+        // Final query to get whatever we found
+        const finalCenters = await ProcessingCenter.find({
+            location: {
+                $near: {
+                    $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+                    $maxDistance: radius * 1000
+                }
+            }
+        }).limit(50);
 
         res.status(200).json({
             success: true,
-            count: localCenters.length,
-            data: localCenters.map(c => ({
-                id: c.externalId || c._id,
-                _id: c._id,
-                name: c.name,
-                type: c.type,
-                location: c.location.coordinates,
-                city: c.city,
-                contact: c.contact,
-                image: c.image,
-                images: c.images || [],
-                marketPrices: c.marketPrices || [],
-                source: c.source
-            }))
+            count: finalCenters.length,
+            data: finalCenters.map(prepareCenterResponse)
         });
     } catch (error) {
+        console.error("[-] Facility API error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// Helper to keep response clean
+const prepareCenterResponse = (c) => ({
+    id: c.externalId || c._id,
+    _id: c._id,
+    name: c.name,
+    type: c.type,
+    location: c.location.coordinates,
+    city: c.city,
+    contact: c.contact,
+    image: c.image,
+    images: c.images || [],
+    marketPrices: c.marketPrices || [],
+    source: c.source || 'External',
+    lastUpdated: c.lastUpdated
+});
 
 /**
  * Delete a listing (mark as completed or removed)
@@ -376,6 +386,49 @@ export const deleteListing = async (req, res) => {
 
         await SupplyChainListing.findByIdAndDelete(id);
         res.status(200).json({ success: true, message: 'Listing removed successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Get all listings created by the current user
+ */
+export const getMyListings = async (req, res) => {
+    try {
+        const listings = await SupplyChainListing.find({ farmerId: req.user.id })
+            .sort({ createdAt: -1 });
+        res.status(200).json({ success: true, data: listings });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Update listing status (e.g. to 'Sold' or 'Completed')
+ */
+export const updateListingStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!['Active', 'Sold', 'Expired'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const listing = await SupplyChainListing.findById(id);
+        if (!listing) {
+            return res.status(404).json({ success: false, message: 'Listing not found' });
+        }
+
+        if (listing.farmerId.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        listing.status = status;
+        await listing.save();
+
+        res.status(200).json({ success: true, data: listing });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

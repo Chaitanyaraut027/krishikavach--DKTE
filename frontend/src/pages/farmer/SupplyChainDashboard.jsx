@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, LayersControl, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, LayersControl, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -97,7 +97,7 @@ const getFacilityIcon = (type) => {
 const SupplyChainDashboard = () => {
     const { user } = useAuth();
     const { isDark } = useTheme();
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const [listings, setListings] = useState([]);
     const [processingCenters, setProcessingCenters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -134,6 +134,24 @@ const SupplyChainDashboard = () => {
     const [routes, setRoutes] = useState({}); // listingId -> { coordinates, distance, duration }
     const [showAIModal, setShowAIModal] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
+    const [showPastListingsModal, setShowPastListingsModal] = useState(false);
+    const [pastListings, setPastListings] = useState([]);
+    const [loadingFacilities, setLoadingFacilities] = useState(false);
+    const [debouncedSearchParams, setDebouncedSearchParams] = useState(searchParams);
+    const [aiLang, setAiLang] = useState(lang || 'en');
+
+    // Sync AI language with site language when site language changes
+    useEffect(() => {
+        setAiLang(lang);
+    }, [lang]);
+
+    // Debounce search parameters
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchParams(searchParams);
+        }, 500); // 500ms delay
+        return () => clearTimeout(handler);
+    }, [searchParams]);
 
     // Auto-fill user info when modal opens
     useEffect(() => {
@@ -211,7 +229,8 @@ const SupplyChainDashboard = () => {
             - Transport: ${newListing.preferredTransport}
             - Available from: ${newListing.availabilityDate}
             
-            The description should be professional, highlight quality, and emphasize transport collaboration benefits. Keep it under 80 words.`;
+            The description should be professional, highlight quality, and emphasize transport collaboration benefits. Keep it under 80 words.
+            IMPORTANT: Write the entire description ONLY in ${aiLang === 'mr' ? 'Marathi' : aiLang === 'hi' ? 'Hindi' : 'English'} language.`;
 
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
@@ -254,47 +273,66 @@ const SupplyChainDashboard = () => {
             );
         }
     }, []);
-
     const fetchListings = useCallback(async () => {
         if (!myLocation) return;
         setLoading(true);
-        try {
-            const { data } = await axios.get('/supply-chain/listings/nearby', {
-                params: {
-                    longitude: myLocation[1],
-                    latitude: myLocation[0],
-                    distance: searchParams.distance,
-                    cropType: searchParams.cropType
-                }
-            });
-            const fetchedListings = data.data;
-            setListings(fetchedListings);
+        setLoadingFacilities(true);
 
-            // Fetch road routes for all listings with destinations
-            fetchedListings.forEach(item => {
-                if (item.destinationCoords?.coordinates?.length === 2) {
-                    fetchRoadRoute(item._id,
-                        [item.location.coordinates[1], item.location.coordinates[0]],
-                        [item.destinationCoords.coordinates[1], item.destinationCoords.coordinates[0]]
-                    );
-                }
-            });
+        // 1. Fetch listings (High priority)
+        const fetchListingsJob = async () => {
+            try {
+                const res = await axios.get('/supply-chain/listings/nearby', {
+                    params: {
+                        longitude: myLocation[1],
+                        latitude: myLocation[0],
+                        distance: searchParams.distance,
+                        cropType: searchParams.cropType
+                    },
+                    timeout: 8000
+                });
+                const fetchedListings = res.data.data;
+                setListings(fetchedListings);
 
-            const centerRes = await axios.get('/supply-chain/external/processing-centers', {
-                params: {
-                    latitude: myLocation[0],
-                    longitude: myLocation[1],
-                    city: searchParams.city,
-                    radius: searchParams.distance
-                }
-            });
-            setProcessingCenters(centerRes.data.data);
-        } catch (error) {
-            console.error('Fetch error:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [myLocation, searchParams]);
+                // Fetch road routes (non-blocking)
+                fetchedListings.forEach(item => {
+                    if (item.destinationCoords?.coordinates?.length === 2) {
+                        fetchRoadRoute(item._id,
+                            [item.location.coordinates[1], item.location.coordinates[0]],
+                            [item.destinationCoords.coordinates[1], item.destinationCoords.coordinates[0]]
+                        );
+                    }
+                });
+            } catch (err) {
+                console.error("Listings fetch error:", err);
+            } finally {
+                setLoading(false); // Stop general loading as soon as listings are done
+            }
+        };
+
+        // 2. Fetch processing centers (Low priority, can take time)
+        const fetchCentersJob = async () => {
+            try {
+                const res = await axios.get('/supply-chain/external/processing-centers', {
+                    params: {
+                        latitude: myLocation[0],
+                        longitude: myLocation[1],
+                        city: searchParams.city,
+                        radius: searchParams.distance
+                    },
+                    timeout: 15000 // Allow more time for scraper
+                });
+                setProcessingCenters(res.data.data);
+            } catch (err) {
+                console.error("Facilities fetch error:", err);
+            } finally {
+                setLoadingFacilities(false);
+            }
+        };
+
+        // Run both, but don't let centers block the UI
+        fetchListingsJob();
+        fetchCentersJob();
+    }, [myLocation, debouncedSearchParams]); // Use debounced params
 
     // Handle routing for the "pending" new listing
     useEffect(() => {
@@ -345,6 +383,10 @@ const SupplyChainDashboard = () => {
         if (!window.confirm(t("Are you sure you want to remove this listing?"))) return;
         try {
             await axios.delete(`/supply-chain/listings/${listingId}`);
+
+            // Remove from local state immediately to fix the "not removing" bug
+            setListings(prev => prev.filter(l => l._id !== listingId));
+
             // Remove route from state immediately
             setRoutes(prev => {
                 const next = { ...prev };
@@ -354,6 +396,36 @@ const SupplyChainDashboard = () => {
             fetchListings();
         } catch (error) {
             alert(t("Error removing listing"));
+        }
+    };
+
+    const handleMarkAsDone = async (listingId) => {
+        try {
+            await axios.patch(`/supply-chain/listings/status/${listingId}`, { status: 'Sold' });
+
+            // Remove from local active listings state immediately
+            setListings(prev => prev.filter(l => l._id !== listingId));
+
+            // Remove route from state immediately
+            setRoutes(prev => {
+                const next = { ...prev };
+                delete next[listingId];
+                return next;
+            });
+            fetchListings();
+            alert(t("Listing marked as completed!"));
+        } catch (error) {
+            alert(t("Error updating listing status"));
+        }
+    };
+
+    const fetchPastListings = async () => {
+        try {
+            const { data } = await axios.get('/supply-chain/listings/my-listings');
+            setPastListings(data.data);
+            setShowPastListingsModal(true);
+        } catch (error) {
+            alert(t("Error fetching history"));
         }
     };
 
@@ -400,13 +472,22 @@ const SupplyChainDashboard = () => {
                     </h1>
                     <p className="kk-text mt-1">{t('Collaborate with nearby farmers to reduce transport costs and reach better markets.')}</p>
                 </div>
-                <button
-                    onClick={() => setShowListingModal(true)}
-                    className="kk-btn-primary flex items-center gap-2 self-start"
-                >
-                    <Plus size={20} />
-                    {t('Post New Listing')}
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={fetchPastListings}
+                        className="kk-btn-ghost flex items-center gap-2"
+                    >
+                        <TrendingUp size={20} />
+                        {t('Past Collaborations')}
+                    </button>
+                    <button
+                        onClick={() => setShowListingModal(true)}
+                        className="kk-btn-primary flex items-center gap-2 self-start"
+                    >
+                        <Plus size={20} />
+                        {t('Post New Listing')}
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[700px]">
@@ -459,11 +540,31 @@ const SupplyChainDashboard = () => {
                             </div>
 
                             <div className="pt-4 border-t border-border-card">
-                                <h4 className="text-xs font-black text-secondary uppercase tracking-widest mb-4">{t('Nearby Results')} ({listings.length})</h4>
-                                <div className="space-y-3 overflow-y-auto max-h-[350px] pr-2">
-                                    {loading ? (
-                                        <div className="flex justify-center py-8"><Loader2 className="animate-spin text-emerald-500" /></div>
-                                    ) : listings.filter(item => item.farmerId?._id !== user?._id).map(item => (
+                                <h4 className="text-xs font-black text-secondary uppercase tracking-widest mb-4 flex justify-between">
+                                    {t('Nearby Network')}
+                                    <span className="text-emerald-500">{listings.length}</span>
+                                </h4>
+                                <div className="space-y-3 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                                    {/* User's own active target */}
+                                    {listings.filter(l => l.farmerId?._id === user?._id).map(item => (
+                                        <div key={item._id} className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/30 border-dashed">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-sm font-black text-emerald-600 uppercase tracking-tight">{t('Your Listing')}</span>
+                                                <span className="text-xs font-black text-emerald-500">{t(item.cropType)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-emerald-600/70 font-bold">
+                                                <MapPin size={10} /> {item.destinationName || t('No Destination')}
+                                            </div>
+                                            {routes[item._id] && (
+                                                <div className="flex items-center gap-2 mt-2 p-1.5 bg-white/50 dark:bg-black/20 rounded-lg text-[9px] font-black text-emerald-700 dark:text-emerald-400">
+                                                    <Truck size={12} /> {routes[item._id].distance} KM • {routes[item._id].duration} MINS
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {/* Other farmers */}
+                                    {listings.filter(item => item.farmerId?._id !== user?._id).map(item => (
                                         <div key={item._id} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/50 transition-all group">
                                             <div className="flex justify-between items-start mb-1">
                                                 <span className="text-sm font-bold text-primary">{t(item.cropType)}</span>
@@ -478,10 +579,18 @@ const SupplyChainDashboard = () => {
                                             </button>
                                         </div>
                                     ))}
-                                    {!loading && listings.length === 0 && (
+
+                                    {listings.length === 0 && !loading && (
                                         <p className="text-center py-8 text-xs text-muted">{t('No farmers found in this range.')}</p>
                                     )}
                                 </div>
+
+                                {loadingFacilities && (
+                                    <div className="mt-4 p-2 bg-blue-500/10 rounded-lg flex items-center justify-center gap-2">
+                                        <Loader2 size={12} className="animate-spin text-blue-500" />
+                                        <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{t('Updating facilities...')}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -646,7 +755,7 @@ const SupplyChainDashboard = () => {
                                                     <X size={14} /> {t('REMOVE')}
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteListing(item._id)}
+                                                    onClick={() => handleMarkAsDone(item._id)}
                                                     className="py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
                                                 >
                                                     <ShieldCheck size={14} /> {t('DONE')}
@@ -655,18 +764,27 @@ const SupplyChainDashboard = () => {
                                         )}
                                     </div>
                                 </Popup>
-                                {routes[item._id] && (
-                                    <Polyline
-                                        positions={routes[item._id].coordinates}
-                                        pathOptions={{
-                                            color: '#ef4444',
-                                            weight: 4,
-                                            dashArray: '5, 8',
-                                            opacity: 0.8
-                                        }}
-                                    />
-                                )}
                             </Marker>
+                        ))}
+
+                        {/* Rendering Routes Separately */}
+                        {listings.map(item => routes[item._id] && (
+                            <Polyline
+                                key={`route-${item._id}`}
+                                positions={routes[item._id].coordinates}
+                                pathOptions={{
+                                    color: item.farmerId?._id === user?._id ? '#10b981' : '#ef4444',
+                                    weight: 4,
+                                    dashArray: '5, 8',
+                                    opacity: 0.8
+                                }}
+                            >
+                                <Tooltip sticky direction="top" opacity={1}>
+                                    <div className="bg-white/90 p-1.5 px-2 rounded-lg text-emerald-600 font-black text-[10px] shadow-xl border border-emerald-100 flex items-center gap-1.5">
+                                        <Truck size={12} /> {routes[item._id].distance} KM • {routes[item._id].duration} MINS
+                                    </div>
+                                </Tooltip>
+                            </Polyline>
                         ))}
 
                         {/* Render path to selected destination */}
@@ -681,7 +799,13 @@ const SupplyChainDashboard = () => {
                                             opacity: 0.8,
                                             className: 'targeting-polyline'
                                         }}
-                                    />
+                                    >
+                                        <Tooltip sticky direction="top" opacity={1}>
+                                            <div className="bg-blue-600 p-1.5 px-2 rounded-lg text-white font-black text-[10px] shadow-xl border border-blue-400 flex items-center gap-1.5">
+                                                <Truck size={12} /> {routes['temp-listing'].distance} KM • {routes['temp-listing'].duration} MINS
+                                            </div>
+                                        </Tooltip>
+                                    </Polyline>
                                 )}
                             </>
                         )}
@@ -790,85 +914,95 @@ const SupplyChainDashboard = () => {
                                             </div>
 
                                             {/* Action Box */}
-                                            <div className={`p-3 grid grid-cols-2 gap-2 border-t ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
-                                                {isTargeted ? (
-                                                    <>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Find the listing that targets this facility
-                                                                const myListing = listings.find(l =>
-                                                                    l.farmerId._id === user?._id &&
-                                                                    l.destinationCoords?.coordinates[0] === center.location[0] &&
-                                                                    l.destinationCoords?.coordinates[1] === center.location[1]
-                                                                );
-
-                                                                if (myListing) {
-                                                                    handleDeleteListing(myListing._id);
-                                                                } else {
-                                                                    // Temporary target in state
-                                                                    setNewListing({
-                                                                        ...newListing,
-                                                                        destinationName: '',
-                                                                        destinationLongitude: null,
-                                                                        destinationLatitude: null
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-1.5"
-                                                        >
-                                                            <X size={14} /> REMOVE
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const myListing = listings.find(l =>
-                                                                    l.farmerId._id === user?._id &&
-                                                                    l.destinationCoords?.coordinates[0] === center.location[0] &&
-                                                                    l.destinationCoords?.coordinates[1] === center.location[1]
-                                                                );
-
-                                                                if (myListing) {
-                                                                    handleDeleteListing(myListing._id);
-                                                                } else {
-                                                                    setNewListing({
-                                                                        ...newListing,
-                                                                        destinationName: '',
-                                                                        destinationLongitude: null,
-                                                                        destinationLatitude: null
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
-                                                        >
-                                                            <ShieldCheck size={14} /> DONE
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            onClick={() => {
-                                                                setNewListing({
-                                                                    ...newListing,
-                                                                    destinationName: center.name,
-                                                                    destinationLongitude: center.location[0],
-                                                                    destinationLatitude: center.location[1]
-                                                                });
-                                                                setSelectedFacility(center);
-                                                                setShowListingModal(true);
-                                                            }}
-                                                            className="py-2 bg-blue-600 text-white rounded-xl text-[10px] font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5"
-                                                        >
-                                                            <Target size={14} /> {t('SELL')}
-                                                        </button>
-                                                        <a
-                                                            href={`tel:${center.contact}`}
-                                                            className={`py-2 border rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 ${isDark ? 'border-white/10 text-white hover:bg-white/10' : 'border-gray-200 text-gray-900 hover:bg-gray-100'}`}
-                                                        >
-                                                            <Phone size={14} className="text-blue-500" /> CALL
-                                                        </a>
-                                                    </>
+                                            <div className={`p-3 flex flex-col gap-2 border-t ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
+                                                {isTargeted && routes['temp-listing'] && (
+                                                    <div className="flex items-center gap-1.5 p-2 mb-1 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                                        <Truck size={14} className="text-blue-500" />
+                                                        <span className="text-[11px] font-black text-blue-500 uppercase tracking-tighter">
+                                                            {routes['temp-listing'].distance} KM • {routes['temp-listing'].duration} MINS {t('TO DESTINATION')}
+                                                        </span>
+                                                    </div>
                                                 )}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {isTargeted ? (
+                                                        <>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    // Find the listing that targets this facility
+                                                                    const myListing = listings.find(l =>
+                                                                        l.farmerId._id === user?._id &&
+                                                                        l.destinationCoords?.coordinates[0] === center.location[0] &&
+                                                                        l.destinationCoords?.coordinates[1] === center.location[1]
+                                                                    );
+
+                                                                    if (myListing) {
+                                                                        handleDeleteListing(myListing._id);
+                                                                    } else {
+                                                                        // Temporary target in state
+                                                                        setNewListing({
+                                                                            ...newListing,
+                                                                            destinationName: '',
+                                                                            destinationLongitude: null,
+                                                                            destinationLatitude: null
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-1.5"
+                                                            >
+                                                                <X size={14} /> REMOVE
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const myListing = listings.find(l =>
+                                                                        l.farmerId._id === user?._id &&
+                                                                        l.destinationCoords?.coordinates[0] === center.location[0] &&
+                                                                        l.destinationCoords?.coordinates[1] === center.location[1]
+                                                                    );
+
+                                                                    if (myListing) {
+                                                                        handleDeleteListing(myListing._id);
+                                                                    } else {
+                                                                        setNewListing({
+                                                                            ...newListing,
+                                                                            destinationName: '',
+                                                                            destinationLongitude: null,
+                                                                            destinationLatitude: null
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                                                            >
+                                                                <ShieldCheck size={14} /> DONE
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setNewListing({
+                                                                        ...newListing,
+                                                                        destinationName: center.name,
+                                                                        destinationLongitude: center.location[0],
+                                                                        destinationLatitude: center.location[1]
+                                                                    });
+                                                                    setSelectedFacility(center);
+                                                                    setShowListingModal(true);
+                                                                }}
+                                                                className="py-2 bg-blue-600 text-white rounded-xl text-[10px] font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5"
+                                                            >
+                                                                <Target size={14} /> {t('SELL')}
+                                                            </button>
+                                                            <a
+                                                                href={`tel:${center.contact}`}
+                                                                className={`py-2 border rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 ${isDark ? 'border-white/10 text-white hover:bg-white/10' : 'border-gray-200 text-gray-900 hover:bg-gray-100'}`}
+                                                            >
+                                                                <Phone size={14} className="text-blue-500" /> CALL
+                                                            </a>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </Popup>
@@ -967,8 +1101,9 @@ const SupplyChainDashboard = () => {
                                                     value={newListing.unit}
                                                     onChange={(e) => setNewListing({ ...newListing, unit: e.target.value })}
                                                 >
-                                                    <option>tons</option>
-                                                    <option>kg</option>
+                                                    <option value="tons">{t('tons')}</option>
+                                                    <option value="kg">{t('kg')}</option>
+                                                    <option value="quintal">{t('quintal')}</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -998,28 +1133,50 @@ const SupplyChainDashboard = () => {
                                         </div>
 
                                         <div>
-                                            <div className="flex justify-between items-center mb-1.5">
-                                                <label className="kk-muted block">{t('Description')}</label>
+                                            <div className="flex flex-col gap-2 mb-2">
+                                                <div className="flex justify-between items-center">
+                                                    <label className="kk-muted block">{t('Description')}</label>
+                                                    <div className="flex bg-gray-100 dark:bg-white/5 p-1 rounded-lg gap-1 border border-black/5 dark:border-white/5">
+                                                        {['en', 'mr', 'hi'].map((l) => (
+                                                            <button
+                                                                key={l}
+                                                                type="button"
+                                                                onClick={() => setAiLang(l)}
+                                                                className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-all ${aiLang === l
+                                                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                                                    : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/5'
+                                                                    }`}
+                                                            >
+                                                                {l === 'en' ? 'EN' : l === 'mr' ? 'मराठी' : 'हिंदी'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                                 <button
                                                     type="button"
                                                     onClick={handleGenerateAI}
                                                     disabled={generatingAI}
-                                                    className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-all"
+                                                    className="kk-btn-ghost py-1.5 flex items-center justify-center gap-2 text-emerald-600 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl"
                                                 >
                                                     {generatingAI ? (
-                                                        <CircleDashed size={12} className="animate-spin" />
+                                                        <>
+                                                            <Loader2 size={16} className="animate-spin" />
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest">{t('WRITING...')}</span>
+                                                        </>
                                                     ) : (
-                                                        <Sparkles size={12} />
+                                                        <>
+                                                            <Sparkles size={16} />
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest">{t('AUTO-GENERATE WITH AI')}</span>
+                                                        </>
                                                     )}
-                                                    {generatingAI ? t('WRITING...') : t('AUTO-GENERATE WITH AI')}
                                                 </button>
                                             </div>
                                             <textarea
-                                                className="kk-input min-h-[100px]"
-                                                placeholder={t("Describe your transport needs...")}
+                                                className="kk-input min-h-[100px] resize-none"
+                                                placeholder={t("Tell other farmers about crop quality, organic practices, or specific transport needs...")}
                                                 value={newListing.description}
                                                 onChange={(e) => setNewListing({ ...newListing, description: e.target.value })}
-                                            />
+                                            ></textarea>
                                         </div>
                                     </div>
 
@@ -1051,6 +1208,15 @@ const SupplyChainDashboard = () => {
                                                 />
                                                 <MapPin className="absolute right-3 top-3 text-blue-500" size={18} />
                                             </div>
+                                            {routes['temp-listing'] && (
+                                                <div className="mt-2 p-2 bg-blue-500/5 rounded-xl border border-blue-500/20 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Truck size={16} className="text-blue-500" />
+                                                        <span className="text-[11px] font-black text-blue-600 uppercase tracking-wide">{t('Shortest Path Found')}</span>
+                                                    </div>
+                                                    <span className="text-xs font-black text-blue-600">{routes['temp-listing'].distance} KM • {routes['temp-listing'].duration} MINS</span>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
@@ -1198,6 +1364,98 @@ const SupplyChainDashboard = () => {
                 isOpen={showAIModal}
                 onClose={() => setShowAIModal(false)}
             />
+
+            {/* Past Collaborations Modal */}
+            <AnimatePresence>
+                {showPastListingsModal && (
+                    <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowPastListingsModal(false)}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className={`relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl ${isDark ? 'bg-[#0a0a0a] border border-white/10' : 'bg-white'}`}
+                        >
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-emerald-600 text-white">
+                                <div className="flex items-center gap-3">
+                                    <TrendingUp size={24} />
+                                    <div>
+                                        <h2 className="text-xl font-bold">{t('My Collaboration History')}</h2>
+                                        <p className="text-xs text-white/70">{t('View and manage your past crop postings.')}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowPastListingsModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)] custom-scrollbar">
+                                {pastListings.length === 0 ? (
+                                    <div className="text-center py-20">
+                                        <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
+                                            <TableIcon size={32} className="text-gray-400" />
+                                        </div>
+                                        <p className="text-secondary">{t('No history found.')}</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {pastListings.map(listing => (
+                                            <div
+                                                key={listing._id}
+                                                className={`p-4 rounded-2xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}
+                                            >
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${listing.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'
+                                                            }`}>
+                                                            {t(listing.status)}
+                                                        </span>
+                                                        <h3 className="font-bold text-lg mt-1">{t(listing.cropType)}</h3>
+                                                        <p className="text-xs text-secondary">{new Date(listing.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (window.confirm(t("Delete this record permanently?"))) {
+                                                                try {
+                                                                    await axios.delete(`/supply-chain/listings/${listing._id}`);
+                                                                    setPastListings(prev => prev.filter(l => l._id !== listing._id));
+                                                                    fetchListings();
+                                                                } catch (err) {
+                                                                    alert(t("Error deleting record"));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    >
+                                                        <X size={20} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 text-xs">
+                                                    <div>
+                                                        <p className="kk-muted">{t('Quantity')}</p>
+                                                        <p className="font-bold">{listing.quantity} {t(listing.unit)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="kk-muted">{t('Destination')}</p>
+                                                        <p className="font-bold truncate">{listing.destinationName || t('N/A')}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

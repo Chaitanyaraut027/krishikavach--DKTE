@@ -349,7 +349,11 @@ export const LanguageProvider = ({ children }) => {
         'Post for Collaboration', 'Current Market Rates', 'No price data available for this facility yet.',
         'These prices are updated by the facility management or scraped from official market sources. Contact the facility directly to confirm current rates before transport.',
         'Request Collab', 'Cancel', 'Logistics & Location', 'Tractor', 'Truck', 'Trolley', 'Other',
-        'Farmer', 'Crop', 'Verified', 'Last Updated', 'Are you sure you want to remove this listing?'
+        'Farmer', 'Crop', 'Verified', 'Last Updated', 'Are you sure you want to remove this listing?',
+        'Past Collaborations', 'My Collaboration History', 'View and manage your past crop postings.',
+        'No history found.', 'Delete this record permanently?', 'Listing marked as completed!',
+        'Active', 'Sold', 'Expired', 'My Crops', 'Destination', 'N/A', 'Updating facilities...',
+        'tons', 'kg', 'quintal'
     ];
 
     useEffect(() => {
