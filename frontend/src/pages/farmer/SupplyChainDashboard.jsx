@@ -25,6 +25,7 @@ import {
 import axios from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import AIKeyModal from '../../components/AIKeyModal';
 import {
@@ -52,7 +53,28 @@ const farmerIcon = L.divIcon({
 
 const millIcon = L.divIcon({
     className: 'custom-div-icon',
-    html: `<div style="background-color: #3b82f6; color: white; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-factory"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><path d="M17 18h1"></path><path d="M12 18h1"></path><path d="M7 18h1"></path></svg></div>`,
+    html: `<div style="background-color: #0d9488; color: white; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10"></path><path d="m22 10-10-8L2 10"></path><path d="M6 18h4"></path><path d="M14 18h4"></path></svg></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+});
+
+const ginningIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `<div style="background-color: #8b5cf6; color: white; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path></svg></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+});
+
+const marketIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `<div style="background-color: #f97316; color: white; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><line x1="3" x2="21" y1="9" y2="9"></line><line x1="3" x2="21" y1="15" y2="15"></line><line x1="9" x2="9" y1="3" y2="21"></line><line x1="15" x2="15" y1="3" y2="21"></line></svg></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+});
+
+const warehouseIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `<div style="background-color: #2563eb; color: white; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l9-5 9 5v13H3Z"></path><path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"></path></svg></div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16]
 });
@@ -64,9 +86,18 @@ const myIcon = new L.Icon({
     popupAnchor: [0, -40],
 });
 
+const getFacilityIcon = (type) => {
+    const t = type?.toLowerCase() || '';
+    if (t.includes('ginning') || t.includes('genning')) return ginningIcon;
+    if (t.includes('market') || t.includes('apmc')) return marketIcon;
+    if (t.includes('warehouse') || t.includes('storage')) return warehouseIcon;
+    return millIcon;
+};
+
 const SupplyChainDashboard = () => {
     const { user } = useAuth();
     const { isDark } = useTheme();
+    const { t } = useLanguage();
     const [listings, setListings] = useState([]);
     const [processingCenters, setProcessingCenters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -164,7 +195,7 @@ const SupplyChainDashboard = () => {
         }
 
         if (!newListing.cropType || !newListing.quantity) {
-            alert("Please enter at least Crop Type and Quantity for AI to work its magic!");
+            alert(t("Please enter at least Crop Type and Quantity for AI to work its magic!"));
             return;
         }
 
@@ -204,7 +235,7 @@ const SupplyChainDashboard = () => {
             }
         } catch (error) {
             console.error('AI Generation error:', error);
-            alert("Failed to generate description. Check your internet connection.");
+            alert(t("Failed to generate description. Check your internet connection."));
         } finally {
             setGeneratingAI(false);
         }
@@ -242,8 +273,8 @@ const SupplyChainDashboard = () => {
             // Fetch road routes for all listings with destinations
             fetchedListings.forEach(item => {
                 if (item.destinationCoords?.coordinates?.length === 2) {
-                    fetchRoadRoute(item._id, 
-                        [item.location.coordinates[1], item.location.coordinates[0]], 
+                    fetchRoadRoute(item._id,
+                        [item.location.coordinates[1], item.location.coordinates[0]],
                         [item.destinationCoords.coordinates[1], item.destinationCoords.coordinates[0]]
                     );
                 }
@@ -293,7 +324,7 @@ const SupplyChainDashboard = () => {
             setShowListingModal(false);
             fetchListings();
         } catch (error) {
-            alert("Error creating listing");
+            alert(t("Error creating listing"));
         }
     };
 
@@ -304,9 +335,9 @@ const SupplyChainDashboard = () => {
                 listingId: listing._id,
                 message: `Hi ${listing.farmerId.fullName}, I have crops nearby and I'm interested in coordinating transportation with you.`
             });
-            alert("Request sent successfully!");
+            alert(t("Request sent successfully!"));
         } catch (error) {
-            alert(error.response?.data?.message || "Error sending request");
+            alert(error.response?.data?.message || t("Error sending request"));
         }
     };
 
@@ -314,29 +345,67 @@ const SupplyChainDashboard = () => {
         if (!window.confirm("Are you sure you want to remove this listing?")) return;
         try {
             await axios.delete(`/supply-chain/listings/${listingId}`);
+            // Remove route from state immediately
+            setRoutes(prev => {
+                const next = { ...prev };
+                delete next[listingId];
+                return next;
+            });
             fetchListings();
         } catch (error) {
-            alert("Error removing listing");
+            alert(t("Error removing listing"));
         }
     };
 
     return (
         <div className="kk-page p-4 sm:p-6 lg:p-8">
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 5px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'};
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: ${isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'};
+                }
+                
+                /* Leaflet Popup Fixes */
+                .leaflet-popup-content-wrapper {
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                }
+                .leaflet-popup-content {
+                    margin: 0 !important;
+                    width: fit-content !important;
+                }
+                .leaflet-popup-tip-container {
+                    display: none;
+                }
+                .leaflet-container {
+                    font-family: inherit;
+                }
+            `}</style>
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="kk-h1 flex items-center gap-3">
                         <Truck className="text-emerald-500" size={32} />
-                        Supply Chain Network
+                        {t('Supply Chain Network')}
                     </h1>
-                    <p className="kk-text mt-1">Collaborate with nearby farmers to reduce transport costs and reach better markets.</p>
+                    <p className="kk-text mt-1">{t('Collaborate with nearby farmers to reduce transport costs and reach better markets.')}</p>
                 </div>
                 <button
                     onClick={() => setShowListingModal(true)}
                     className="kk-btn-primary flex items-center gap-2 self-start"
                 >
                     <Plus size={20} />
-                    Post New Listing
+                    {t('Post New Listing')}
                 </button>
             </div>
 
@@ -346,7 +415,7 @@ const SupplyChainDashboard = () => {
                     <div className="kk-card p-5 h-full">
                         <h3 className="kk-h3 mb-4 flex items-center gap-2">
                             <Filter size={18} className="text-emerald-500" />
-                            Filter Network
+                            {t('Filter Network')}
                         </h3>
 
                         <div className="space-y-4">
@@ -355,7 +424,7 @@ const SupplyChainDashboard = () => {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={18} />
                                     <input
                                         type="text"
-                                        placeholder="Search city (e.g. Pune, Sangli)..."
+                                        placeholder={t("Search city (e.g. Pune, Sangli)...")}
                                         className="kk-input pl-10 w-full"
                                         value={searchParams.city}
                                         onChange={(e) => setSearchParams({ ...searchParams, city: e.target.value })}
@@ -363,7 +432,7 @@ const SupplyChainDashboard = () => {
                                 </div>
                                 <div className="flex flex-col gap-1 min-w-[200px]">
                                     <label className="text-xs font-bold text-secondary flex justify-between">
-                                        Search Radius
+                                        {t('Search Radius')}
                                         <span className="text-emerald-500">{searchParams.distance} km</span>
                                     </label>
                                     <input
@@ -381,36 +450,36 @@ const SupplyChainDashboard = () => {
                                     value={searchParams.cropType}
                                     onChange={(e) => setSearchParams({ ...searchParams, cropType: e.target.value })}
                                 >
-                                    <option value="">All Crop Types</option>
-                                    <option value="Cotton">Cotton</option>
-                                    <option value="Grapes">Grapes</option>
-                                    <option value="SugarCane">Sugar Cane</option>
-                                    <option value="Soybean">Soybean</option>
+                                    <option value="">{t('All Crop Types')}</option>
+                                    <option value="Cotton">{t('Cotton')}</option>
+                                    <option value="Grapes">{t('Grapes')}</option>
+                                    <option value="SugarCane">{t('Sugar Cane')}</option>
+                                    <option value="Soybean">{t('Soybean')}</option>
                                 </select>
                             </div>
 
                             <div className="pt-4 border-t border-border-card">
-                                <h4 className="text-xs font-black text-secondary uppercase tracking-widest mb-4">Nearby Results ({listings.length})</h4>
+                                <h4 className="text-xs font-black text-secondary uppercase tracking-widest mb-4">{t('Nearby Results')} ({listings.length})</h4>
                                 <div className="space-y-3 overflow-y-auto max-h-[350px] pr-2">
                                     {loading ? (
                                         <div className="flex justify-center py-8"><Loader2 className="animate-spin text-emerald-500" /></div>
                                     ) : listings.filter(item => item.farmerId?._id !== user?._id).map(item => (
                                         <div key={item._id} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/50 transition-all group">
                                             <div className="flex justify-between items-start mb-1">
-                                                <span className="text-sm font-bold text-primary">{item.cropType}</span>
+                                                <span className="text-sm font-bold text-primary">{t(item.cropType)}</span>
                                                 <span className="text-xs font-black text-emerald-400">₹{item.price}</span>
                                             </div>
-                                            <p className="text-[11px] text-secondary truncate mb-2">By {item.farmerId.fullName}</p>
+                                            <p className="text-[11px] text-secondary truncate mb-2">{t('By')} {item.farmerId.fullName}</p>
                                             <button
                                                 onClick={() => sendCollabRequest(item)}
                                                 className="w-full py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase hover:bg-emerald-500 hover:text-white transition-all"
                                             >
-                                                Request Collab
+                                                {t('Request Collab')}
                                             </button>
                                         </div>
                                     ))}
                                     {!loading && listings.length === 0 && (
-                                        <p className="text-center py-8 text-xs text-muted">No farmers found in this range.</p>
+                                        <p className="text-center py-8 text-xs text-muted">{t('No farmers found in this range.')}</p>
                                     )}
                                 </div>
                             </div>
@@ -424,7 +493,7 @@ const SupplyChainDashboard = () => {
                         <div className="absolute inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center text-white">
                             <div className="text-center">
                                 <Loader2 className="animate-spin mx-auto mb-4" size={40} />
-                                <p className="font-bold">Locating you on the map...</p>
+                                <p className="font-bold">{t('Locating you on the map...')}</p>
                             </div>
                         </div>
                     )}
@@ -433,7 +502,7 @@ const SupplyChainDashboard = () => {
                         center={mapCenter}
                         zoom={12}
                         className="w-full h-full"
-                        style={{ 
+                        style={{
                             filter: isDark ? 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)' : 'none',
                             zIndex: 10 // Fix z-index overlap
                         }}
@@ -454,7 +523,7 @@ const SupplyChainDashboard = () => {
                             <>
                                 <Marker position={myLocation} icon={myIcon}>
                                     <Popup>
-                                        <div className="p-1 font-bold">You are here</div>
+                                        <div className="p-1 font-bold">{t('You are here')}</div>
                                     </Popup>
                                 </Marker>
                                 <Circle
@@ -471,13 +540,13 @@ const SupplyChainDashboard = () => {
                                 position={[item.location.coordinates[1], item.location.coordinates[0]]}
                                 icon={farmerIcon}
                             >
-                                <Popup>
-                                    <div className={`p-4 min-w-[250px] rounded-2xl border shadow-xl ${isDark ? 'bg-slate-900 border-white/10' : 'bg-white border-gray-100'}`}>
+                                <Popup maxHeight={450}>
+                                    <div className={`p-4 min-w-[280px] max-h-[450px] overflow-y-auto custom-scrollbar rounded-2xl border shadow-2xl bg-[var(--bg-card)] border-[var(--border-card)]`}>
                                         {item.listingImage && (
                                             <div className="relative mb-3">
-                                                <img 
-                                                    src={item.listingImage} 
-                                                    alt={item.cropType} 
+                                                <img
+                                                    src={item.listingImage}
+                                                    alt={item.cropType}
                                                     className="w-full h-32 object-cover rounded-xl shadow-inner border border-white/5"
                                                 />
                                                 <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-black rounded-lg shadow-lg uppercase">
@@ -493,30 +562,30 @@ const SupplyChainDashboard = () => {
                                                 <MapPin size={10} /> {item.city}
                                             </div>
                                         </div>
-                                        
+
                                         <div className="mb-4">
                                             <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-gray-900'} leading-none mb-1`}>{item.farmerId.fullName}</h3>
-                                            <p className="text-[10px] text-secondary font-medium italic">Active Farmer</p>
+                                            <p className="text-[10px] text-secondary font-medium italic">{t('Active Farmer')}</p>
                                         </div>
 
                                         <div className={`space-y-2 p-3 rounded-xl mb-4 text-[11px] ${isDark ? 'bg-white/5 border border-white/5' : 'bg-gray-50 border border-gray-100'}`}>
                                             <div className="flex justify-between items-center">
-                                                <span className="text-secondary font-bold uppercase tracking-tighter">Yield</span> 
-                                                <span className={`font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.yieldAmount} {item.unit}</span>
+                                                <span className="text-secondary font-bold uppercase tracking-tighter">{t('Yield')}</span>
+                                                <span className={`font-black text-[var(--text-primary)]`}>{item.yieldAmount} {t(item.unit)}</span>
                                             </div>
                                             <div className="flex justify-between items-center pt-1 border-t border-white/10">
-                                                <span className="text-secondary font-bold uppercase tracking-tighter">Need Collab</span> 
-                                                <span className="font-black text-emerald-500">{item.neededAmount} {item.unit}</span>
+                                                <span className="text-secondary font-bold uppercase tracking-tighter">{t('Need Collab')}</span>
+                                                <span className="font-black text-emerald-500">{item.neededAmount} {t(item.unit)}</span>
                                             </div>
                                             {item.destinationName && (
                                                 <div className="flex justify-between items-start pt-1 border-t border-white/10">
-                                                    <span className="text-secondary font-bold uppercase tracking-tighter">Selling At</span> 
-                                                    <span className={`font-black text-right max-w-[120px] line-clamp-1 italic ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.destinationName}</span>
+                                                    <span className="text-secondary font-bold uppercase tracking-tighter">Selling At</span>
+                                                    <span className={`font-black text-right max-w-[120px] line-clamp-1 italic text-[var(--text-primary)]`}>{item.destinationName}</span>
                                                 </div>
                                             )}
                                             {routes[item._id] && (
                                                 <div className="flex justify-between items-start pt-1 border-t border-white/10">
-                                                    <span className="text-secondary font-bold uppercase tracking-tighter">Road Distance</span> 
+                                                    <span className="text-secondary font-bold uppercase tracking-tighter">Road Distance</span>
                                                     <span className="font-black text-blue-500">{routes[item._id].distance} km ({routes[item._id].duration}m)</span>
                                                 </div>
                                             )}
@@ -527,13 +596,13 @@ const SupplyChainDashboard = () => {
                                                 onClick={() => sendCollabRequest(item)}
                                                 className="py-2 bg-emerald-600 text-white rounded-lg text-[10px] font-bold shadow-md hover:bg-emerald-700 transition-colors uppercase"
                                             >
-                                                Collaborate
+                                                {t('Collaborate')}
                                             </button>
                                             <a
                                                 href={`tel:${item.contactPhone || item.farmerId.mobileNumber}`}
                                                 className="py-2 bg-white border border-emerald-600 text-emerald-600 rounded-lg text-[10px] font-bold shadow-sm hover:bg-emerald-50 transition-colors uppercase text-center flex items-center justify-center gap-2"
                                             >
-                                                <Phone size={12} /> Call
+                                                <Phone size={12} /> {t('Call')}
                                             </a>
                                         </div>
                                     </div>
@@ -553,13 +622,13 @@ const SupplyChainDashboard = () => {
                                     iconAnchor: [10, 10]
                                 })}
                             >
-                                <Popup>
-                                    <div className={`p-3 min-w-[200px] border rounded-2xl shadow-xl ${isDark ? 'bg-slate-900 border-white/10 text-white' : 'bg-white border-gray-100 text-gray-900'}`}>
-                                        <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">TARGET DESTINATION</div>
+                                <Popup maxHeight={400}>
+                                    <div className={`p-3 min-w-[220px] max-h-[400px] overflow-y-auto custom-scrollbar border rounded-2xl shadow-2xl bg-[var(--bg-card)] border-[var(--border-card)] text-[var(--text-primary)]`}>
+                                        <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">{t('TARGET DESTINATION')}</div>
                                         <h4 className="font-bold text-sm mb-2">{item.destinationName}</h4>
                                         <div className="space-y-1 mb-4">
-                                            <p className="text-[11px] text-secondary">Farmer: {item.farmerId.fullName}</p>
-                                            <p className="text-[11px] text-secondary">Crop: {item.cropType}</p>
+                                            <p className="text-[11px] text-secondary">{t('Farmer')}: {item.farmerId.fullName}</p>
+                                            <p className="text-[11px] text-secondary">{t('Crop')}: {t(item.cropType)}</p>
                                             {routes[item._id] && (
                                                 <div className="flex items-center gap-1.5 mt-2 p-1.5 bg-blue-500/10 rounded-lg border border-blue-500/20">
                                                     <Truck size={12} className="text-blue-500" />
@@ -567,42 +636,34 @@ const SupplyChainDashboard = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        
+
                                         {item.farmerId._id === user?._id && (
                                             <div className="grid grid-cols-2 gap-2 mt-2">
                                                 <button
                                                     onClick={() => handleDeleteListing(item._id)}
                                                     className="py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-1.5"
                                                 >
-                                                    <X size={14} /> REMOVE
+                                                    <X size={14} /> {t('REMOVE')}
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteListing(item._id)}
                                                     className="py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
                                                 >
-                                                    <ShieldCheck size={14} /> DONE
+                                                    <ShieldCheck size={14} /> {t('DONE')}
                                                 </button>
                                             </div>
                                         )}
                                     </div>
                                 </Popup>
-                                {routes[item._id] ? (
-                                    <Polyline 
+                                {routes[item._id] && (
+                                    <Polyline
                                         positions={routes[item._id].coordinates}
-                                        pathOptions={{ 
-                                            color: '#ef4444', 
-                                            weight: 4, 
+                                        pathOptions={{
+                                            color: '#ef4444',
+                                            weight: 4,
                                             dashArray: '5, 8',
-                                            opacity: 0.8 
+                                            opacity: 0.8
                                         }}
-                                    />
-                                ) : (
-                                    <Polyline 
-                                        positions={[
-                                            [item.location.coordinates[1], item.location.coordinates[0]],
-                                            [item.destinationCoords.coordinates[1], item.destinationCoords.coordinates[0]]
-                                        ]}
-                                        pathOptions={{ color: '#ef4444', weight: 2, dashArray: '5, 10', opacity: 0.6 }}
                                     />
                                 )}
                             </Marker>
@@ -611,26 +672,12 @@ const SupplyChainDashboard = () => {
                         {/* Render path to selected destination */}
                         {myLocation && newListing.destinationLongitude && newListing.destinationLatitude && (
                             <>
-                                {routes['temp-listing'] ? (
-                                    <Polyline 
+                                {routes['temp-listing'] && (
+                                    <Polyline
                                         positions={routes['temp-listing'].coordinates}
-                                        pathOptions={{ 
-                                            color: '#3b82f6', 
-                                            weight: 5, 
-                                            opacity: 0.8,
-                                            className: 'targeting-polyline'
-                                        }}
-                                    />
-                                ) : (
-                                    <Polyline 
-                                        positions={[
-                                            myLocation,
-                                            [newListing.destinationLatitude, newListing.destinationLongitude]
-                                        ]}
-                                        pathOptions={{ 
-                                            color: '#3b82f6', 
-                                            weight: 3, 
-                                            dashArray: '10, 10', 
+                                        pathOptions={{
+                                            color: '#3b82f6',
+                                            weight: 5,
                                             opacity: 0.8,
                                             className: 'targeting-polyline'
                                         }}
@@ -640,23 +687,23 @@ const SupplyChainDashboard = () => {
                         )}
 
                         {processingCenters.filter(center => center.location?.length === 2 && center.location.every(c => c !== undefined)).map(center => {
-                            const isTargeted = newListing.destinationLongitude === center.location[0] && 
-                                             newListing.destinationLatitude === center.location[1];
-                            
+                            const isTargeted = newListing.destinationLongitude === center.location[0] &&
+                                newListing.destinationLatitude === center.location[1];
+
                             return (
                                 <Marker
                                     key={center.id}
                                     position={[center.location[1], center.location[0]]}
-                                    icon={millIcon}
+                                    icon={getFacilityIcon(center.type)}
                                 >
-                                    <Popup>
-                                        <div className={`p-0 min-w-[280px] rounded-2xl overflow-hidden border shadow-xl ${isDark ? 'bg-slate-900 border-white/10' : 'bg-white border-gray-100'}`}>
+                                    <Popup maxHeight={480}>
+                                        <div className={`p-0 min-w-[300px] max-h-[480px] overflow-y-auto custom-scrollbar rounded-2xl border shadow-2xl bg-[var(--bg-card)] border-[var(--border-card)]`}>
                                             {/* Simple Header */}
                                             <div className={`p-3 border-b ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
                                                 <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{center.name}</h3>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
-                                                        {center.source} Verified
+                                                        {t(center.source)} {t('Verified')}
                                                     </span>
                                                     <span className="text-[10px] text-gray-500 flex items-center gap-1">
                                                         • {center.city}
@@ -668,29 +715,29 @@ const SupplyChainDashboard = () => {
                                             <div className="p-3">
                                                 {!popupView[center._id] || popupView[center._id] === 'info' ? (
                                                     <div className="space-y-3">
-                                                        <p className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Verified agricultural processing center.</p>
+                                                        <p className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('Verified agricultural processing center.')}</p>
                                                         <div className="grid grid-cols-2 gap-2">
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setPopupView({...popupView, [center._id]: 'gallery'}); }}
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setPopupView({ ...popupView, [center._id]: 'gallery' }); }}
                                                                 className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
                                                             >
                                                                 <ImageIcon size={18} className="text-purple-400" />
-                                                                <span className="text-[9px] font-bold text-secondary uppercase">Gallery</span>
+                                                                <span className="text-[9px] font-bold text-secondary uppercase">{t('GALLERY')}</span>
                                                             </button>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setPopupView({...popupView, [center._id]: 'prices'}); }}
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setPopupView({ ...popupView, [center._id]: 'prices' }); }}
                                                                 className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
                                                             >
                                                                 <TrendingUp size={18} className="text-emerald-400" />
-                                                                <span className="text-[9px] font-bold text-secondary uppercase">Prices</span>
+                                                                <span className="text-[9px] font-bold text-secondary uppercase">{t('PRICES')}</span>
                                                             </button>
                                                         </div>
                                                     </div>
                                                 ) : popupView[center._id] === 'gallery' ? (
                                                     <div className="space-y-3">
                                                         <div className="relative aspect-video rounded-xl overflow-hidden bg-black/40">
-                                                            <img 
-                                                                src={center.images?.[currentImgIndex[center._id] || 0] || center.image || 'https://images.unsplash.com/photo-1590644365607-1c5a519a9a37?q=80&w=400'} 
+                                                            <img
+                                                                src={center.images?.[currentImgIndex[center._id] || 0] || center.image || 'https://images.unsplash.com/photo-1590644365607-1c5a519a9a37?q=80&w=400'}
                                                                 className="w-full h-full object-cover"
                                                                 alt=""
                                                             />
@@ -700,18 +747,18 @@ const SupplyChainDashboard = () => {
                                                                         e.stopPropagation();
                                                                         const idx = currentImgIndex[center._id] || 0;
                                                                         const next = (idx - 1 + center.images.length) % center.images.length;
-                                                                        setCurrentImgIndex({...currentImgIndex, [center._id]: next});
-                                                                    }} className="p-1 bg-black/60 text-white rounded-full"><ChevronLeft size={16}/></button>
+                                                                        setCurrentImgIndex({ ...currentImgIndex, [center._id]: next });
+                                                                    }} className="p-1 bg-black/60 text-white rounded-full"><ChevronLeft size={16} /></button>
                                                                     <button onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         const idx = currentImgIndex[center._id] || 0;
                                                                         const next = (idx + 1) % center.images.length;
-                                                                        setCurrentImgIndex({...currentImgIndex, [center._id]: next});
-                                                                    }} className="p-1 bg-black/60 text-white rounded-full"><ChevronRight size={16}/></button>
+                                                                        setCurrentImgIndex({ ...currentImgIndex, [center._id]: next });
+                                                                    }} className="p-1 bg-black/60 text-white rounded-full"><ChevronRight size={16} /></button>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <button onClick={() => setPopupView({...popupView, [center._id]: 'info'})} className="w-full text-[9px] font-bold text-gray-500 hover:text-secondary uppercase">← Back</button>
+                                                        <button onClick={() => setPopupView({ ...popupView, [center._id]: 'info' })} className="w-full text-[9px] font-bold text-gray-500 hover:text-secondary uppercase">← Back</button>
                                                     </div>
                                                 ) : (
                                                     <div className="space-y-3">
@@ -727,17 +774,17 @@ const SupplyChainDashboard = () => {
                                                                     {center.marketPrices?.length > 0 ? (
                                                                         center.marketPrices.map((p, i) => (
                                                                             <tr key={i}>
-                                                                                <td className={`px-3 py-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.crop}</td>
-                                                                                <td className="px-3 py-2 text-emerald-500 font-bold text-right">₹{p.price}/{p.unit}</td>
+                                                                                <td className={`px-3 py-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{t(p.crop)}</td>
+                                                                                <td className="px-3 py-2 text-emerald-500 font-bold text-right">₹{p.price}/{t(p.unit)}</td>
                                                                             </tr>
                                                                         ))
                                                                     ) : (
-                                                                        <tr><td colSpan="2" className="px-3 py-4 text-center text-secondary italic">No rates found.</td></tr>
+                                                                        <tr><td colSpan="2" className="px-3 py-4 text-center text-secondary italic">{t('No rates found.')}</td></tr>
                                                                     )}
                                                                 </tbody>
                                                             </table>
                                                         </div>
-                                                        <button onClick={() => setPopupView({...popupView, [center._id]: 'info'})} className="w-full text-[9px] font-bold text-gray-500 hover:text-secondary uppercase">← Back</button>
+                                                        <button onClick={() => setPopupView({ ...popupView, [center._id]: 'info' })} className="w-full text-[9px] font-bold text-gray-500 hover:text-secondary uppercase">← {t('Back')}</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -750,12 +797,12 @@ const SupplyChainDashboard = () => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 // Find the listing that targets this facility
-                                                                const myListing = listings.find(l => 
-                                                                    l.farmerId._id === user?._id && 
+                                                                const myListing = listings.find(l =>
+                                                                    l.farmerId._id === user?._id &&
                                                                     l.destinationCoords?.coordinates[0] === center.location[0] &&
                                                                     l.destinationCoords?.coordinates[1] === center.location[1]
                                                                 );
-                                                                
+
                                                                 if (myListing) {
                                                                     handleDeleteListing(myListing._id);
                                                                 } else {
@@ -775,12 +822,12 @@ const SupplyChainDashboard = () => {
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                const myListing = listings.find(l => 
-                                                                    l.farmerId._id === user?._id && 
+                                                                const myListing = listings.find(l =>
+                                                                    l.farmerId._id === user?._id &&
                                                                     l.destinationCoords?.coordinates[0] === center.location[0] &&
                                                                     l.destinationCoords?.coordinates[1] === center.location[1]
                                                                 );
-                                                                
+
                                                                 if (myListing) {
                                                                     handleDeleteListing(myListing._id);
                                                                 } else {
@@ -807,11 +854,12 @@ const SupplyChainDashboard = () => {
                                                                     destinationLongitude: center.location[0],
                                                                     destinationLatitude: center.location[1]
                                                                 });
+                                                                setSelectedFacility(center);
                                                                 setShowListingModal(true);
                                                             }}
                                                             className="py-2 bg-blue-600 text-white rounded-xl text-[10px] font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5"
                                                         >
-                                                            <Target size={14} /> SELL
+                                                            <Target size={14} /> {t('SELL')}
                                                         </button>
                                                         <a
                                                             href={`tel:${center.contact}`}
@@ -853,10 +901,43 @@ const SupplyChainDashboard = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     {/* Left Column - Product Info */}
                                     <div className="space-y-4">
-                                        <h3 className="text-xs font-black text-emerald-500 uppercase tracking-widest border-b border-emerald-500/10 pb-2">Crop Details</h3>
-                                        
+                                        <div className="flex items-center justify-between border-b border-emerald-500/10 pb-2">
+                                            <h3 className="text-xs font-black text-emerald-500 uppercase tracking-widest">{t('Crop Details')}</h3>
+                                            {selectedFacility?.marketPrices?.length > 0 && (
+                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                                    {t('Prices Available')}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {selectedFacility?.marketPrices?.length > 0 && (
+                                            <div className={`p-3 rounded-2xl border ${isDark ? 'bg-white/5 border-white/5' : 'bg-emerald-50/50 border-emerald-100'}`}>
+                                                <label className="text-[10px] font-black text-secondary uppercase tracking-wider mb-2 block">{t('Quick-Select Price from')} {selectedFacility.name}</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedFacility.marketPrices.map((p, i) => (
+                                                        <button
+                                                            key={i}
+                                                            type="button"
+                                                            onClick={() => setNewListing({
+                                                                ...newListing,
+                                                                cropType: p.crop,
+                                                                price: p.price,
+                                                                unit: p.unit || 'kg'
+                                                            })}
+                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${newListing.cropType === p.crop
+                                                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
+                                                                : (isDark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300')
+                                                                }`}
+                                                        >
+                                                            {t(p.crop)}: ₹{p.price}/{t(p.unit)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div>
-                                            <label className="kk-muted block mb-1.5">Crop Type</label>
+                                            <label className="kk-muted block mb-1.5">{t('Crop Type')}</label>
                                             <input
                                                 required
                                                 type="text"
@@ -869,7 +950,7 @@ const SupplyChainDashboard = () => {
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Quantity</label>
+                                                <label className="kk-muted block mb-1.5">{t('Quantity')}</label>
                                                 <input
                                                     required
                                                     type="number"
@@ -880,7 +961,7 @@ const SupplyChainDashboard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Unit</label>
+                                                <label className="kk-muted block mb-1.5">{t('Unit')}</label>
                                                 <select
                                                     className="kk-input"
                                                     value={newListing.unit}
@@ -894,7 +975,7 @@ const SupplyChainDashboard = () => {
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Price (per unit)</label>
+                                                <label className="kk-muted block mb-1.5">{t('Price (per unit)')}</label>
                                                 <input
                                                     required
                                                     type="number"
@@ -905,7 +986,7 @@ const SupplyChainDashboard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Total Yield</label>
+                                                <label className="kk-muted block mb-1.5">{t('Total Yield')}</label>
                                                 <input
                                                     type="text"
                                                     className="kk-input"
@@ -918,7 +999,7 @@ const SupplyChainDashboard = () => {
 
                                         <div>
                                             <div className="flex justify-between items-center mb-1.5">
-                                                <label className="kk-muted block">Description</label>
+                                                <label className="kk-muted block">{t('Description')}</label>
                                                 <button
                                                     type="button"
                                                     onClick={handleGenerateAI}
@@ -930,12 +1011,12 @@ const SupplyChainDashboard = () => {
                                                     ) : (
                                                         <Sparkles size={12} />
                                                     )}
-                                                    {generatingAI ? 'WRITING...' : 'AUTO-GENERATE WITH AI'}
+                                                    {generatingAI ? t('WRITING...') : t('AUTO-GENERATE WITH AI')}
                                                 </button>
                                             </div>
                                             <textarea
                                                 className="kk-input min-h-[100px]"
-                                                placeholder="Describe your transport needs..."
+                                                placeholder={t("Describe your transport needs...")}
                                                 value={newListing.description}
                                                 onChange={(e) => setNewListing({ ...newListing, description: e.target.value })}
                                             />
@@ -945,7 +1026,7 @@ const SupplyChainDashboard = () => {
                                     {/* Right Column - Logistics & Location */}
                                     <div className="space-y-4">
                                         <h3 className="text-xs font-black text-blue-500 uppercase tracking-widest border-b border-blue-500/10 pb-2">Logistics & Location</h3>
-                                        
+
                                         <div>
                                             <label className="kk-muted block mb-1.5">City/Base Location</label>
                                             <input
@@ -1034,8 +1115,8 @@ const SupplyChainDashboard = () => {
                 )}
             </AnimatePresence>
 
-             {/* Market Price Modal */}
-             <AnimatePresence>
+            {/* Market Price Modal */}
+            <AnimatePresence>
                 {showMarketModal && selectedFacility && (
                     <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4">
                         <motion.div
@@ -1065,9 +1146,9 @@ const SupplyChainDashboard = () => {
                                     <X size={24} />
                                 </button>
                             </div>
-                            
+
                             <div className="p-6">
-                                <div className="overflow-hidden border border-gray-100 rounded-2xl">
+                                <div className="max-h-[420px] overflow-y-auto custom-scrollbar border border-gray-100 rounded-2xl">
                                     <table className="min-w-full divide-y divide-gray-100">
                                         <thead className="bg-gray-50 uppercase text-[10px] font-black text-gray-400 tracking-widest">
                                             <tr>
@@ -1093,8 +1174,8 @@ const SupplyChainDashboard = () => {
                                             {(!selectedFacility.marketPrices || selectedFacility.marketPrices.length === 0) && (
                                                 <tr>
                                                     <td colSpan="3" className="px-6 py-12 text-center text-gray-400 bg-gray-50/50">
-                                                       <TableIcon size={32} className="mx-auto mb-3 opacity-20" />
-                                                       <p className="text-sm">No price data available for this facility yet.</p>
+                                                        <TableIcon size={32} className="mx-auto mb-3 opacity-20" />
+                                                        <p className="text-sm">No price data available for this facility yet.</p>
                                                     </td>
                                                 </tr>
                                             )}
@@ -1113,9 +1194,9 @@ const SupplyChainDashboard = () => {
                 )}
             </AnimatePresence>
 
-            <AIKeyModal 
-                isOpen={showAIModal} 
-                onClose={() => setShowAIModal(false)} 
+            <AIKeyModal
+                isOpen={showAIModal}
+                onClose={() => setShowAIModal(false)}
             />
         </div>
     );

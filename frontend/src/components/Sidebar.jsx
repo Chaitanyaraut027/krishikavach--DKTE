@@ -1,4 +1,4 @@
-
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,7 +12,8 @@ import {
     UserCircle,
     X,
     LogOut,
-    Truck
+    Truck,
+    ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -32,6 +33,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             { path: '/farmer/disease-reports', label: 'Disease Reports', icon: ClipboardList },
             { path: '/farmer/weather', label: 'Weather Updates', icon: CloudSun },
             { path: '/farmer/market', label: 'Market Trends', icon: BarChart3 },
+            { path: '/farmer/schemes', label: 'Govt Schemes', icon: ClipboardList },
             { path: '/farmer/supply-chain', label: 'Supply Chain', icon: Truck },
         ];
         if (user.role === 'admin') return [
@@ -139,6 +141,30 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     </div>
                                 )}
 
+                                {user?.role === 'farmer' && (
+                                    <>
+                                        <div className="mt-4 p-4 rounded-[2rem] bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xl shadow-emerald-500/20 group relative overflow-hidden">
+                                            <div className="relative z-10">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 mb-1">New Opportunity</p>
+                                                <h4 className="text-sm font-bold leading-tight mb-3">Govt Agriculture Schemes</h4>
+                                                <Link
+                                                    to="/farmer/schemes"
+                                                    onClick={onClose}
+                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 text-[10px] font-black rounded-xl hover:bg-emerald-50 transition-colors shadow-lg"
+                                                >
+                                                    View Matches <ChevronRight size={14} />
+                                                </Link>
+                                            </div>
+                                            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                <ClipboardList size={80} />
+                                            </div>
+                                        </div>
+
+                                        {/* Real-time Recommended Scheme Preview */}
+                                        <RecommendedSchemeSidebar onClose={onClose} />
+                                    </>
+                                )}
+
                                 <button
                                     onClick={async () => {
                                         onClose();
@@ -155,6 +181,54 @@ const Sidebar = ({ isOpen, onClose }) => {
                 </>
             )}
         </AnimatePresence>
+    );
+};
+
+
+const RecommendedSchemeSidebar = ({ onClose }) => {
+    const { lang, t } = useLanguage();
+    const [scheme, setScheme] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchPreview = async () => {
+            try {
+                const { schemeAPI } = await import('../services/api');
+                const res = await schemeAPI.getRecommendations(lang);
+                if (res.data.recommendations?.length > 0) {
+                    setScheme(res.data.recommendations[0]);
+                }
+            } catch (err) {
+                console.error("Sidebar scheme preview failed", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchPreview();
+    }, [lang]);
+
+    if (loading || !scheme) return null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-card)] border-l-4 border-l-amber-500 overflow-hidden relative"
+        >
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded uppercase tracking-widest border border-amber-200/50">MATCHED SCHEME</span>
+                <span className="text-[9px] font-bold text-[var(--text-muted)]">{scheme.lastDate}</span>
+            </div>
+            <h5 className="text-xs font-black text-[var(--text-primary)] mb-1 leading-tight line-clamp-1">{scheme.title}</h5>
+            <p className="text-[10px] text-[var(--text-secondary)] mb-3 line-clamp-2 leading-relaxed italic">"{scheme.shortDescription}"</p>
+            <Link
+                to={`/farmer/schemes/${scheme.id}`}
+                onClick={onClose}
+                className="text-[9px] font-black text-emerald-600 flex items-center gap-1 hover:gap-2 transition-all"
+            >
+                {t('View Details')} <ChevronRight size={12} />
+            </Link>
+        </motion.div>
     );
 };
 

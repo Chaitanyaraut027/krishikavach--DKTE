@@ -209,6 +209,9 @@ const AIChatbot = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [preferredVoice, setPreferredVoice] = useState(localStorage.getItem('krishi_pref_voice') || '');
+    const [showSettings, setShowSettings] = useState(false);
+    const [availableVoices, setAvailableVoices] = useState([]);
     const [showQuickQ, setShowQuickQ] = useState(true);
     const [chatLang, setChatLang] = useState(lang === 'hi' || lang === 'mr' ? lang : 'en');
     const [isListening, setIsListening] = useState(false);
@@ -220,6 +223,23 @@ const AIChatbot = () => {
     const textareaRef = useRef(null);
     const recognitionRef = useRef(null);
     const prevPathRef = useRef(location.pathname);
+
+    useEffect(() => {
+        const loadVoices = () => {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length > 0) setAvailableVoices(voices);
+        };
+        loadVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    }, []);
+
+    const saveVoicePreference = (voiceName) => {
+        setPreferredVoice(voiceName);
+        localStorage.setItem('krishi_pref_voice', voiceName);
+        setShowSettings(false);
+    };
 
     const pageContext = getPageContext(location.pathname);
     const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -376,26 +396,42 @@ Is page, fasal ki bimari, kheti ya Krishi Kavach ke features ke baare mein kuch 
         // Clean text: remove HTML, markdown symbols (# * _ ~ `), and link URLs
         const cleanText = text
             .replace(/<[^>]*>?/gm, '') // HTML
-            .replace(/[#*`_~]/g, '')    // Markdown symbols
+            .replace(/[#*`_~]/g, '')    // Markdown symbols: remove ** and *
             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1') // Markdown links -> pure text
-            .replace(/\n/g, '. ')      // Newline to pause
+            .replace(/\n\n/g, '. ')      // Double newline to longer pause
+            .replace(/\n/g, '. ')       // Newline to pause
             .trim();
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
 
-        // Enhanced voice selection for cross-browser support (Edge, Chrome, Safari)
-        const voices = window.speechSynthesis.getVoices();
-        const targetLang = chatLang === 'mr' ? 'mr-IN' : chatLang === 'hi' ? 'hi-IN' : 'en-IN';
-        const searchTerms = chatLang === 'mr' ? ['marathi', 'mr-IN'] : chatLang === 'hi' ? ['hindi', 'hi-IN'] : ['english', 'en-'];
+        // Find best voice match:
+        let voice = null;
+        if (preferredVoice) {
+            voice = voices.find(v => v.name === preferredVoice);
+        }
 
-        // Find best voice match
-        const voice = voices.find(v => v.lang.replace('_', '-') === targetLang) ||
-            voices.find(v => searchTerms.some(term => v.name.toLowerCase().includes(term))) ||
-            voices.find(v => searchTerms.some(term => v.lang.toLowerCase().includes(term))) ||
-            voices.find(v => v.lang.startsWith(chatLang === 'hinglish' ? 'hi' : chatLang)) ||
-            voices[0];
+        if (!voice) {
+            const isMarathi = chatLang === 'mr';
+            const isHindi = chatLang === 'hi' || chatLang === 'hinglish';
+            const targetLangMatch = isMarathi ? 'mr-IN' : isHindi ? 'hi-IN' : 'en-IN';
+            const priorityKeywords = isMarathi ? ['google', 'marathi'] : isHindi ? ['google', 'hindi'] : ['google', 'english', 'india'];
 
-        if (voice) utterance.voice = voice;
+            voice = voices.find(v => priorityKeywords.every(kw => v.name.toLowerCase().includes(kw))) ||
+                voices.find(v => v.lang.replace('_', '-') === targetLangMatch && v.name.toLowerCase().includes('google')) ||
+                voices.find(v => v.lang.replace('_', '-') === targetLangMatch) ||
+                voices.find(v => v.name.toLowerCase().includes(isMarathi ? 'marathi' : isHindi ? 'hindi' : 'english')) ||
+                voices[0];
+        }
+
+        if (voice) {
+            utterance.voice = voice;
+            utterance.lang = voice.lang;
+        } else {
+            const isMarathi = chatLang === 'mr';
+            const isHindi = chatLang === 'hi' || chatLang === 'hinglish';
+            utterance.lang = isMarathi ? 'mr-IN' : isHindi ? 'hi-IN' : 'en-IN';
+        }
+
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
 
@@ -591,6 +627,11 @@ Is page, fasal ki bimari, kheti ya Krishi Kavach ke features ke baare mein kuch 
                             </div>
                         </div>
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => setShowSettings(!showSettings)}
+                                className={`text-violet-200 hover:text-white hover:bg-white/20 w-8 h-8 rounded-full
+                  flex items-center justify-center transition-colors ${showSettings ? 'bg-white/20 text-white' : ''}`} title="Voice settings">
+                                <Volume2 size={16} />
+                            </button>
                             <button onClick={clearChat}
                                 className="text-violet-200 hover:text-white hover:bg-white/20 w-8 h-8 rounded-full
                   flex items-center justify-center transition-colors text-sm" title="Clear chat">
@@ -612,7 +653,43 @@ Is page, fasal ki bimari, kheti ya Krishi Kavach ke features ke baare mein kuch 
                     {!isMinimized && (
                         <>
                             {/* Context pills */}
-                            <div className="flex-shrink-0 mx-3 mt-2 flex flex-wrap gap-1.5">
+                            <div className="flex-shrink-0 mx-3 mt-2 flex flex-wrap gap-1.5 relative">
+                                {showSettings && (
+                                    <div className="absolute top-0 right-0 z-[60] w-64 bg-white rounded-2xl shadow-xl border border-violet-200 p-3 fade-up">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-xs font-bold text-violet-700 uppercase tracking-widest">Select AI Voice</p>
+                                            <button onClick={() => setShowSettings(false)}><X size={14} className="text-gray-400" /></button>
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                            <button
+                                                onClick={() => saveVoicePreference('')}
+                                                className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${!preferredVoice ? 'bg-violet-600 text-white' : 'hover:bg-violet-50 text-gray-700'}`}
+                                            >
+                                                Auto (Smart Selection)
+                                            </button>
+                                            {availableVoices
+                                                .filter(v => v.lang.startsWith('hi') || v.lang.startsWith('mr') || v.lang.startsWith('en'))
+                                                .sort((a, b) => {
+                                                    // Prioritize Google Hindi as requested
+                                                    const aG = a.name.includes('Google') && (a.name.includes('Hindi') || a.name.includes('हिंदी'));
+                                                    const bG = b.name.includes('Google') && (b.name.includes('Hindi') || b.name.includes('हिंदी'));
+                                                    if (aG && !bG) return -1;
+                                                    if (!aG && bG) return 1;
+                                                    return 0;
+                                                })
+                                                .map(v => (
+                                                    <button
+                                                        key={v.name}
+                                                        onClick={() => saveVoicePreference(v.name)}
+                                                        className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${preferredVoice === v.name ? 'bg-violet-600 text-white' : 'hover:bg-violet-50 text-gray-700'}`}
+                                                    >
+                                                        <div className="font-medium truncate">{v.name}</div>
+                                                        <div className={`text-[10px] ${preferredVoice === v.name ? 'text-violet-200' : 'text-gray-400'}`}>{v.lang}</div>
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="bg-violet-50 border border-violet-200 rounded-xl px-2.5 py-1 flex items-center gap-1.5">
                                     <MapPin size={12} className="text-violet-500" />
                                     <p className="text-xs text-violet-700 font-medium truncate max-w-[140px]">

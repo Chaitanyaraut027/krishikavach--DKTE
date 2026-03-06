@@ -220,14 +220,12 @@ const FarmerDashboard = () => {
     { to: '/profile', icon: UserIcon, title: t('My Profile'), desc: t('Update location & settings'), gradient: 'from-rose-500 to-pink-500', bg: 'bg-rose-50', halo: '#f43f5e' },
   ];
 
-  const cardBase = isDark
-    ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
-    : 'bg-white border-gray-100';
-  const textH = isDark ? 'text-white' : 'text-gray-900';
-  const textS = isDark ? 'text-gray-400' : 'text-gray-500';
+  const cardBase = 'bg-[var(--bg-card)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]';
+  const textH = 'text-[var(--text-primary)]';
+  const textS = 'text-[var(--text-secondary)]';
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#050e0a]' : 'bg-gradient-to-br from-[#f0fdf4] via-[#ecfdf5] to-[#f0f4ff]'}`}>
+    <div className={`min-h-screen ${isDark ? 'kk-page-dark' : 'kk-page-light'}`} style={{ backgroundColor: 'var(--bg-page)' }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
@@ -243,13 +241,21 @@ const FarmerDashboard = () => {
         .ai-badge { background: linear-gradient(90deg,#166534,#15803d,#166534); background-size:200% 100%; animation: bgShimmer 3s ease infinite; }
         .pulse-dot { animation: pulse-glow 1.8s infinite; }
         .tip-box { transition: opacity .4s ease; }
-        .hero-bg { background: linear-gradient(135deg,#052e16 0%,#14532d 40%,#166534 70%,#15803d 100%); }
+        .hero-bg { background: var(--bg-header); }
 
         /* Map container reset */
         .kk-map .leaflet-container { border-radius: 0 0 1.5rem 1.5rem; }
         
         /* Leaflet popup card style */
-        .leaflet-popup-content-wrapper { border-radius:14px!important; box-shadow:0 8px 32px rgba(0,0,0,.18)!important; padding:0!important; overflow:hidden; }
+        .leaflet-popup-content-wrapper { 
+          background: var(--bg-card-solid)!important; 
+          color: var(--text-primary)!important;
+          border-radius:14px!important; 
+          box-shadow:0 8px 32px rgba(0,0,0,.18)!important; 
+          padding:0!important; 
+          overflow:hidden; 
+          border: 1px solid var(--border-card);
+        }
         .leaflet-popup-content { margin:0!important; padding:0; }
         .leaflet-popup-tip-container { display:none; }
       `}</style>
@@ -330,7 +336,7 @@ const FarmerDashboard = () => {
         </div>
 
         {/* ══ 2. INTERACTIVE MAP ══════════════════════════════════════════════ */}
-        <div className={`rounded-3xl overflow-hidden shadow-xl border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-gray-100'} fade-up`} style={{ animationDelay: '0.15s' }}>
+        <div className={`rounded-3xl overflow-hidden shadow-xl border bg-[var(--bg-card)] border-[var(--border-card)] fade-up`} style={{ animationDelay: '0.15s' }}>
           {/* Map header */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -349,7 +355,7 @@ const FarmerDashboard = () => {
                 onClick={() => setMapLayer(l => l === 'agronomists' ? 'none' : 'agronomists')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 ${mapLayer === 'agronomists'
                   ? 'bg-blue-600 text-white border-blue-600 shadow'
-                  : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-blue-50'}`}
+                  : 'bg-[var(--bg-input)] text-[var(--text-secondary)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]'}`}
               >
                 <UserIcon size={14} /> {t('Show Agronomists')}
               </button>
@@ -357,13 +363,13 @@ const FarmerDashboard = () => {
                 onClick={() => setMapLayer(l => l === 'markets' ? 'none' : 'markets')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 ${mapLayer === 'markets'
                   ? 'bg-amber-600 text-white border-amber-600 shadow'
-                  : isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-amber-50'}`}
+                  : 'bg-[var(--bg-input)] text-[var(--text-secondary)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]'}`}
               >
                 <Store size={14} /> {t('Show Markets')}
               </button>
               <button
                 onClick={() => setShowMap(v => !v)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${isDark ? 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all bg-[var(--bg-input)] text-[var(--text-secondary)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]`}
               >
                 {showMap ? '▲ Collapse' : '▼ Expand'}
               </button>
@@ -505,9 +511,7 @@ const FarmerDashboard = () => {
 
         {/* ══ 4. AI TIP CAROUSEL ══════════════════════════════════════════════ */}
         <div
-          className={`relative overflow-hidden rounded-2xl border p-5 sm:p-6 fade-up ${isDark
-            ? 'bg-gradient-to-br from-amber-900/20 to-yellow-900/10 border-amber-700/30'
-            : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'}`}
+          className={`relative overflow-hidden rounded-2xl border p-5 sm:p-6 fade-up bg-[var(--bg-card)] border-[var(--border-accent)]`}
           style={{ animationDelay: '0.32s' }}
         >
           <div className="flex items-start gap-4">
@@ -599,10 +603,7 @@ const FarmerDashboard = () => {
               <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
                 {localAgronomists.map((agro) => (
                   <div key={agro.id}
-                    className={`flex-shrink-0 snap-start w-64 card-lift rounded-2xl border p-4 ${isDark
-                      ? 'bg-gradient-to-br from-emerald-900/30 to-teal-900/20 border-emerald-700/30 hover:border-emerald-500/50'
-                      : 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100 hover:border-emerald-300'
-                      } shadow-sm hover:shadow-lg`}>
+                    className={`flex-shrink-0 snap-start w-64 card-lift rounded-2xl border p-4 bg-[var(--bg-card)] border-[var(--border-card)] hover:border-[var(--accent-primary)] shadow-sm hover:shadow-lg`}>
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-3 mb-3">
                       <button

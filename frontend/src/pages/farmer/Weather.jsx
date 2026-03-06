@@ -282,12 +282,10 @@ const Weather = () => {
 
         .wr-root {
           font-family: 'Inter', -apple-system, sans-serif;
-          background: ${isDark
-          ? 'linear-gradient(145deg, #0a0f1e 0%, #0f172a 40%, #071018 100%)'
-          : 'linear-gradient(145deg, #f0fdf4 0%, #ecfdf5 40%, #f0f4ff 100%)'};
+          background: var(--bg-page);
           min-height: 100vh;
           padding: 28px 16px 72px;
-          color: ${isDark ? 'white' : '#1e293b'};
+          color: var(--text-primary);
         }
         .wr-wrap { max-width: 1080px; margin: 0 auto; }
 
@@ -311,12 +309,12 @@ const Weather = () => {
 
         /* ── Glass ── */
         .glass {
-          background: ${isDark ? 'rgba(255,255,255,0.045)' : 'rgba(255,255,255,0.8)'};
+          background: var(--bg-card);
           backdrop-filter: blur(22px);
           -webkit-backdrop-filter: blur(22px);
-          border: 1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,1)'};
+          border: 1px solid var(--border-card);
           border-radius: 24px;
-          box-shadow: ${isDark ? 'none' : '0 10px 30px rgba(0,0,0,0.04)'};
+          box-shadow: var(--shadow-sm);
         }
         .glass-sm {
           background: rgba(255,255,255,0.06);

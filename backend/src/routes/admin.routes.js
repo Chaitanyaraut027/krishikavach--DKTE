@@ -6,7 +6,8 @@ import {
   deleteAgronomist,
   listFacilities, addFacility, updateFacility, deleteFacility,
   listSeeds, addSeed, updateSeed, deleteSeed,
-  listFertilizers, addFertilizer, updateFertilizer, deleteFertilizer
+  listFertilizers, addFertilizer, updateFertilizer, deleteFertilizer,
+  getOutbreakAlerts, triggerScrape
 } from '../controllers/admin.controller.js';
 import { protect, authorizeRoles } from '../middleware/auth.middleware.js';
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.use(protect, authorizeRoles('admin'));
 
 router.get('/farmers', listFarmers);
+router.get('/outbreak-alerts', getOutbreakAlerts);
 router.delete('/farmers/:id', deleteFarmer);
 
 router.get('/agronomists', listAgronomists);
@@ -33,5 +35,7 @@ router.get('/fertilizers', listFertilizers);
 router.post('/fertilizers', addFertilizer);
 router.patch('/fertilizers/:id', updateFertilizer);
 router.delete('/fertilizers/:id', deleteFertilizer);
+
+router.post('/trigger-scrape', triggerScrape);
 
 export default router;

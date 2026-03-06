@@ -28,12 +28,16 @@ import {
   Square,
   Repeat,
   Volume2,
-  VolumeX
+  VolumeX,
+  Settings,
+  MessageSquare
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { diseaseReportAPI, geminiAPI } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useChatbot } from '../context/ChatbotContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import AIKeyModal from './AIKeyModal';
 
 // ── Supported crops for the new YOLO model ─────────────────────────────────
@@ -160,6 +164,7 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
   const { t, lang } = useLanguage();
   const { setDiseaseContext, openChatbot } = useChatbot();
   const { isDark } = useTheme();
+  const { user } = useAuth();
 
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -183,6 +188,10 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [isIdentifying, setIsIdentifying] = useState(false);
   const [relevanceError, setRelevanceError] = useState('');
+  const [showCamera, setShowCamera] = useState(false);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [preferredVoice, setPreferredVoice] = useState(localStorage.getItem('krishi_pref_voice') || '');
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -193,27 +202,62 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
 
   // ── Voice Selection Helper ──────────────────────────────────────────────────
   const getSpeechVoice = (langCode) => {
+    if (!window.speechSynthesis) return null;
     const voices = window.speechSynthesis.getVoices();
-    const isIndic = langCode === 'hi' || langCode === 'mr' || langCode === 'hinglish';
+    if (voices.length === 0) return null;
 
-    // Priority 1: Specifically for Chrome/Edge as requested: "Google Hindi"
-    if (isIndic) {
-      const googleHindi = voices.find(v =>
-        (v.name.includes('Google') && v.name.includes('हिंदी')) ||
-        (v.name.includes('Google') && v.name.includes('Hindi'))
-      );
-      if (googleHindi) return googleHindi;
+    // 1. Check user preference first (stored in localStorage)
+    const pref = localStorage.getItem('krishi_pref_voice');
+    if (pref) {
+      const found = voices.find(v => v.name === pref);
+      if (found) return found;
     }
 
-    const targetLang = langCode === 'mr' ? 'mr-IN' : (langCode === 'hi' || langCode === 'hinglish') ? 'hi-IN' : 'en-IN';
-    const searchTerms = langCode === 'mr' ? ['marathi', 'mr-IN'] : (langCode === 'hi' || langCode === 'hinglish') ? ['hindi', 'hi-IN'] : ['english', 'en-', 'google us', 'microsoft david'];
+    // 2. Identify target language strings
+    const isMarathi = langCode === 'mr';
+    const isHindi = langCode === 'hi' || langCode === 'hinglish';
+    const targetLangMatch = isMarathi ? 'mr-IN' : isHindi ? 'hi-IN' : 'en-IN';
 
-    return voices.find(v => v.lang.replace('_', '-') === targetLang) ||
-      voices.find(v => searchTerms.some(term => v.name.toLowerCase().includes(term))) ||
-      voices.find(v => searchTerms.some(term => v.lang.toLowerCase().includes(term))) ||
-      voices.find(v => v.lang.startsWith(langCode === 'hinglish' ? 'hi' : langCode)) ||
-      voices[0];
+    // 3. Priority search criteria
+    // We want Google voices first as requested by user
+    const priorityKeywords = isMarathi ? ['google', 'marathi'] : isHindi ? ['google', 'hindi'] : ['google', 'english', 'india'];
+
+    // Search 1: Exact Google match
+    let bestMatch = voices.find(v => priorityKeywords.every(kw => v.name.toLowerCase().includes(kw)));
+
+    // Search 2: Any matching language code + Google
+    if (!bestMatch) {
+      bestMatch = voices.find(v => v.lang.replace('_', '-') === targetLangMatch && v.name.toLowerCase().includes('google'));
+    }
+
+    // Search 3: Any matching language code
+    if (!bestMatch) {
+      bestMatch = voices.find(v => v.lang.replace('_', '-') === targetLangMatch);
+    }
+
+    // Search 4: Any voice that contains the language name
+    if (!bestMatch) {
+      const langName = isMarathi ? 'marathi' : isHindi ? 'hindi' : 'english';
+      bestMatch = voices.find(v => v.name.toLowerCase().includes(langName));
+    }
+
+    return bestMatch || voices[0];
   };
+
+  const saveVoicePreference = (voiceName) => {
+    setPreferredVoice(voiceName);
+    localStorage.setItem('krishi_pref_voice', voiceName);
+    setShowVoiceSettings(false);
+  };
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v.length > 0) setAvailableVoices(v);
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
 
   const stopSpeech = () => {
     if (window.speechSynthesis) {
@@ -272,8 +316,14 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
     if (!fullText) return;
 
     const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.voice = getSpeechVoice(lang);
-    utterance.rate = 0.95; // Slightly slower for better clarity
+    const selectedVoice = getSpeechVoice(lang);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang; // Crucial for non-English compatibility
+    } else {
+      utterance.lang = lang === 'mr' ? 'mr-IN' : (lang === 'hi' || lang === 'hinglish') ? 'hi-IN' : 'en-IN';
+    }
+    utterance.rate = 0.95;
     utterance.pitch = 1.0;
 
     utterance.onstart = () => {
@@ -556,12 +606,34 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
 
   const cropInfo = selectedCrop && CROPS.find(c => c.id === selectedCrop.id);
 
+  const shareToWhatsApp = () => {
+    if (!predictionResult) return;
+
+    const cropName = predictionResult.cropName || selectedCrop?.id || 'Crop';
+    const diseaseName = predictionResult.prediction;
+    const confidence = predictionResult.confidence;
+    const imageUrl = predictionResult.imageURL;
+    const diagnosis = geminiInfo?.diagnosis || '';
+
+    const text = `*Krishi Kavach - Crop Disease Report* 🌾\n\n` +
+      `🌿 *Crop:* ${cropName}\n` +
+      `🚨 *Detected Disease:* ${diseaseName}\n` +
+      `✅ *Confidence:* ${confidence}%\n\n` +
+      (diagnosis ? `📝 *AI Analysis:* ${diagnosis}\n\n` : '') +
+      `🖼️ *View Image:* ${imageUrl}\n\n` +
+      `_Sent via Krishi Kavach AI_ 🛡️`;
+
+    const encodedText = encodeURIComponent(text);
+    const whatsappUrl = `https://wa.me/${user?.mobileNumber || ''}?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   const textH = isDark ? 'text-white' : 'text-gray-900';
   const textS = isDark ? 'text-gray-400' : 'text-gray-600';
   const cardBg = isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-gray-100';
 
   return (
-    <div className={`min-h-screen p-4 md:p-8 ${isDark ? 'bg-[#050e0a]' : 'bg-gradient-to-br from-green-50 via-white to-emerald-50'}`}>
+    <div className={`min-h-screen p-4 md:p-8 ${isDark ? 'kk-page-dark' : 'kk-page-light'}`} style={{ backgroundColor: 'var(--bg-page)' }}>
       <style>{`
         @keyframes fadeSlideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes spin360 { to { transform:rotate(360deg); } }
@@ -592,10 +664,10 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
 
         {/* ── STEP 1: Image Upload ────────────────────────────────────── */}
         {!predictionResult && (
-          <div className={`${cardBg} rounded-3xl shadow-xl p-6 md:p-8 mb-6 fade-up`}>
+          <div className={`rounded-3xl shadow-xl p-6 md:p-8 mb-6 fade-up bg-[var(--bg-card)] border border-[var(--border-card)]`}>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">1</div>
-              <h2 className={`text-lg font-bold ${textH}`}>{t('Upload Plant Image')}</h2>
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">1</div>
+              <h2 className={`text-lg font-bold text-[var(--text-primary)]`}>{t('Upload Plant Image')}</h2>
             </div>
 
             {!imagePreview ? (
@@ -622,21 +694,21 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                       <Upload className="w-8 h-8 text-white" />
                     </div>
                     <div className="text-center">
-                      <p className="font-bold text-gray-800">{t('Upload from Gallery')}</p>
-                      <p className="text-sm text-gray-500 mt-1">{t('JPG, PNG, WebP up to 10MB')}</p>
+                      <p className="font-bold text-[var(--text-primary)]">{t('Upload from Gallery')}</p>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">{t('JPG, PNG, WebP up to 10MB')}</p>
                     </div>
                   </button>
 
                   <button
-                    onClick={() => cameraInputRef.current?.click()}
-                    className={`group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-dashed hover:shadow-lg transition-all duration-200 bg-blue-50/50 border-blue-200 hover:scale-[1.02]`}
+                    onClick={() => setShowCamera(true)}
+                    className={`group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-dashed hover:shadow-lg transition-all duration-200 bg-[var(--bg-input)] border-[var(--border-card)] hover:scale-[1.02]`}
                   >
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg">
                       <Camera className="w-8 h-8 text-white" />
                     </div>
                     <div className="text-center">
-                      <p className="font-bold text-gray-800">{t('Take a Photo')}</p>
-                      <p className="text-sm text-gray-500 mt-1">{t('Open your camera directly')}</p>
+                      <p className="font-bold text-[var(--text-primary)]">{t('Take a Photo')}</p>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">{t('Open your camera directly')}</p>
                     </div>
                   </button>
                 </div>
@@ -677,8 +749,8 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
           <div className={`${cardBg} rounded-3xl shadow-xl p-6 md:p-8 mb-6 fade-up border-2 ${selectedCrop ? 'border-green-400' : 'border-gray-200'}`}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">2</div>
-                <h2 className={`text-lg font-bold ${textH}`}>{selectedCrop ? t('Confirm Crop Selection') : t('Select Crop Type')}</h2>
+                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">2</div>
+                <h2 className={`text-lg font-bold text-[var(--text-primary)]`}>{selectedCrop ? t('Confirm Crop Selection') : t('Select Crop Type')}</h2>
               </div>
               {selectedCrop && (
                 <button onClick={() => setSelectedCrop(null)} className="text-xs font-bold text-indigo-600 hover:underline">{t('Change Crop')}</button>
@@ -750,22 +822,70 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                 >
                   <Repeat size={14} />
                 </button>
-                <button
-                  onClick={pauseResumeSpeech}
-                  className={`p-1.5 rounded-lg transition-all ${isPaused ? 'text-amber-600 bg-amber-50' : 'text-gray-400 hover:text-amber-500'}`}
-                  disabled={!isSpeaking && !isPaused}
-                  title={isPaused ? "Resume" : "Pause"}
-                >
-                  {isPaused ? <Play size={14} /> : <Pause size={14} />}
-                </button>
-                <button
-                  onClick={stopSpeech}
-                  className={`p-1.5 rounded-lg transition-all text-gray-400 hover:text-red-500`}
-                  disabled={!isSpeaking && !isPaused}
-                  title="Stop"
-                >
-                  <Square size={14} fill="currentColor" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={pauseResumeSpeech}
+                    className={`p-3 rounded-2xl border transition-all ${isPaused ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                    title={isPaused ? "Resume" : "Pause"}
+                  >
+                    {isPaused ? <Play size={20} /> : <Pause size={20} />}
+                  </button>
+
+                  {/* Voice Selection Icon */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+                      className={`p-3 rounded-2xl border transition-all ${showVoiceSettings ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                      title="Select Voice"
+                    >
+                      <Settings size={20} />
+                    </button>
+
+                    {showVoiceSettings && (
+                      <div className="absolute top-full right-0 mt-2 z-50 w-72 bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 fade-up">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-black text-secondary uppercase tracking-[0.2em]">Speech Model</p>
+                          <button onClick={() => setShowVoiceSettings(false)} className="p-1 hover:bg-gray-100 rounded-full"><X size={14} /></button>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+                          <button
+                            onClick={() => saveVoicePreference('')}
+                            className={`w-full text-left px-4 py-3 rounded-2xl text-sm transition-all ${!preferredVoice ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'hover:bg-gray-50 text-gray-700'}`}
+                          >
+                            Auto (Smart Select)
+                          </button>
+                          {availableVoices
+                            .filter(v => ['hi', 'mr', 'en'].some(l => v.lang.startsWith(l)))
+                            .sort((a, b) => {
+                              const aG = a.name.includes('Google') && (a.name.includes('Hindi') || a.name.includes('हिंदी'));
+                              const bG = b.name.includes('Google') && (b.name.includes('Hindi') || b.name.includes('हिंदी'));
+                              if (aG && !bG) return -1;
+                              if (!aG && bG) return 1;
+                              return 0;
+                            })
+                            .map(v => (
+                              <button
+                                key={v.name}
+                                onClick={() => saveVoicePreference(v.name)}
+                                className={`w-full text-left px-4 py-3 rounded-2xl text-sm transition-all ${preferredVoice === v.name ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'hover:bg-gray-50 text-gray-700'}`}
+                              >
+                                <div className="font-bold truncate">{v.name}</div>
+                                <div className={`text-[10px] ${preferredVoice === v.name ? 'text-emerald-100' : 'text-gray-400'}`}>{v.lang}</div>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={stopSpeech}
+                    className="p-3 rounded-2xl bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 transition-all font-bold"
+                    title="Stop Speech"
+                  >
+                    <VolumeX size={20} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -907,6 +1027,12 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
               >
                 <History size={18} /> {t('View All Reports')}
               </button>
+              <button
+                onClick={shareToWhatsApp}
+                className="flex-1 min-w-[140px] py-3 px-6 bg-[#25D366] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <MessageSquare size={18} /> {t('Share to WhatsApp')}
+              </button>
             </div>
           </div>
         )}
@@ -951,7 +1077,7 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                       <h3 className="text-xl font-extrabold text-gray-900 leading-tight">{geminiInfo.title}</h3>
 
                       {/* Speech Controls */}
-                      <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-white/5 p-1 rounded-xl border border-gray-100 dark:border-white/10 ml-4">
+                      <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-white/5 p-1 rounded-xl border border-gray-100 dark:border-white/10 ml-4 relative">
                         <button
                           onClick={() => handleSpeak(predictionResult, geminiInfo)}
                           className={`p-1.5 rounded-lg transition-all ${isSpeaking && !isPaused ? 'text-violet-600 bg-violet-50 shadow-sm' : 'text-gray-400 hover:text-violet-500'}`}
@@ -967,6 +1093,51 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
                         >
                           {isPaused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
                         </button>
+
+                        <button
+                          onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+                          className={`p-1.5 rounded-lg transition-all ${showVoiceSettings ? 'text-emerald-600 bg-emerald-50 shadow-sm' : 'text-gray-400 hover:text-emerald-500'}`}
+                          title="Select Voice"
+                        >
+                          <Settings size={16} />
+                        </button>
+
+                        {showVoiceSettings && (
+                          <div className="absolute top-full right-0 mt-2 z-50 w-64 bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 fade-up">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-[10px] font-black text-secondary uppercase tracking-[0.2em]">Voice Model</p>
+                              <button onClick={() => setShowVoiceSettings(false)} className="p-1 hover:bg-gray-100 rounded-full"><X size={12} /></button>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+                              <button
+                                onClick={() => saveVoicePreference('')}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all ${!preferredVoice ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'hover:bg-gray-50 text-gray-700'}`}
+                              >
+                                Auto (Smart Select)
+                              </button>
+                              {availableVoices
+                                .filter(v => ['hi', 'mr', 'en'].some(l => v.lang.startsWith(l)))
+                                .sort((a, b) => {
+                                  const aG = a.name.includes('Google') && (a.name.includes('Hindi') || a.name.includes('हिंदी'));
+                                  const bG = b.name.includes('Google') && (b.name.includes('Hindi') || b.name.includes('हिंदी'));
+                                  if (aG && !bG) return -1;
+                                  if (!aG && bG) return 1;
+                                  return 0;
+                                })
+                                .map(v => (
+                                  <button
+                                    key={v.name}
+                                    onClick={() => saveVoicePreference(v.name)}
+                                    className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all ${preferredVoice === v.name ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'hover:bg-gray-50 text-gray-700'}`}
+                                  >
+                                    <div className="font-bold truncate">{v.name}</div>
+                                    <div className={`text-[9px] ${preferredVoice === v.name ? 'text-emerald-100' : 'text-gray-400'}`}>{v.lang}</div>
+                                  </button>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
                         <button
                           onClick={stopSpeech}
                           className={`p-1.5 rounded-lg transition-all text-gray-400 hover:text-red-500`}
@@ -1262,6 +1433,127 @@ const DiseaseDetection = ({ onDetectionComplete }) => {
         isOpen={showKeyModal}
         onClose={() => setShowKeyModal(false)}
       />
+
+      <CameraModal
+        isOpen={showCamera}
+        onClose={() => setShowCamera(false)}
+        t={t}
+        onCapture={(file) => {
+          handleImageFile(file);
+        }}
+      />
+    </div>
+  );
+};
+
+// ── Real Camera Capability Modal ─────────────────────────────────────────────
+const CameraModal = ({ isOpen, onClose, onCapture, t }) => {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [stream, setStream] = useState(null);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) startCamera();
+    else stopCamera();
+    return () => stopCamera();
+  }, [isOpen]);
+
+  const startCamera = async () => {
+    try {
+      const constraints = {
+        video: {
+          facingMode: 'environment', // Use back camera
+          width: { ideal: 1080 },
+          height: { ideal: 1080 }
+        }
+      };
+      const s = await navigator.mediaDevices.getUserMedia(constraints);
+      setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        videoRef.current.play();
+        setIsActive(true);
+      }
+    } catch (err) {
+      alert("Camera access denied or not available. " + err.message);
+      onClose();
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+      setIsActive(false);
+    }
+  };
+
+  const captureFrame = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    // Match canvas to video resolution
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      onCapture(file);
+      onClose();
+    }, 'image/jpeg', 0.9);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
+      <div className="relative w-full max-w-lg bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col">
+        {/* Viewfinder */}
+        <div className="relative flex-1 bg-gray-900 overflow-hidden flex items-center justify-center min-h-[400px]">
+          {!isActive && <RotateCcw className="spin text-emerald-500 w-12 h-12" />}
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            playsInline
+          />
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Guide lines */}
+          <div className="absolute inset-0 pointer-events-none border-2 border-emerald-500/20 rounded-3xl m-10" />
+          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-emerald-500/10 pointer-events-none" />
+          <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-emerald-500/10 pointer-events-none" />
+        </div>
+
+        {/* Controls */}
+        <div className="p-8 bg-gradient-to-t from-black to-gray-900 flex items-center justify-between">
+          <button
+            onClick={onClose}
+            className="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-all font-bold"
+          >
+            <X size={24} />
+          </button>
+
+          <button
+            onClick={captureFrame}
+            className="w-20 h-20 rounded-full bg-white p-1.5 shadow-xl hover:scale-110 active:scale-95 transition-all"
+          >
+            <div className="w-full h-full rounded-full border-4 border-gray-900 flex items-center justify-center bg-emerald-600">
+              <Camera size={32} className="text-white" />
+            </div>
+          </button>
+
+          <div className="w-12 h-12" /> {/* Spacer */}
+        </div>
+
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 whitespace-nowrap">
+          <p className="text-xs text-white font-bold uppercase tracking-widest">{t('Focus on Crop Leaf')}</p>
+        </div>
+      </div>
     </div>
   );
 };

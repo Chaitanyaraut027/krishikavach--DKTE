@@ -28,7 +28,7 @@ const ChatDrawer = ({ isOpen, onClose }) => {
     const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && user) {
             fetchData();
             socketRef.current = io(socketUrl.replace('/api/v1', ''), {
                 withCredentials: true
@@ -47,7 +47,7 @@ const ChatDrawer = ({ isOpen, onClose }) => {
                 socketRef.current.disconnect();
             };
         }
-    }, [isOpen]);
+    }, [isOpen, user]);
 
     useEffect(() => {
         if (activeChat) {
@@ -74,10 +74,15 @@ const ChatDrawer = ({ isOpen, onClose }) => {
 
     const handleUpdateStatus = async (requestId, status) => {
         try {
-            await axios.patch('/supply-chain/collaboration/status', { requestId, status });
-            fetchData();
+            const { data } = await axios.patch('/supply-chain/collaboration/status', { requestId, status });
+            await fetchData();
+            if (status === 'Accepted' && data.data?._id) {
+                // Find and open new chat automatically
+                const newChat = data.data; // Server usually returns the created chat on Accept
+                setActiveChat(newChat);
+            }
         } catch (error) {
-            alert("Error updating status");
+            alert(error.response?.data?.message || "Error updating status");
         }
     };
 
@@ -141,10 +146,10 @@ const ChatDrawer = ({ isOpen, onClose }) => {
                                         </button>
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-[var(--text-primary)]">
-                                                {activeChat.participants.find(p => p._id !== user.id)?.fullName}
+                                                {activeChat.participants?.find(p => p._id !== user.id)?.fullName || 'Farmer Partner'}
                                             </p>
                                             <p className="text-[10px] text-emerald-500 font-bold uppercase truncate">
-                                                {activeChat.requestId?.listingId?.cropType} Collaboration
+                                                {activeChat.requestId?.listingId?.cropType || 'Crop'} Collaboration
                                             </p>
                                         </div>
                                     </div>
@@ -158,8 +163,8 @@ const ChatDrawer = ({ isOpen, onClose }) => {
                                                     </span>
                                                 ) : (
                                                     <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${msg.senderId === user.id
-                                                            ? 'bg-emerald-600 text-white rounded-br-none shadow-lg'
-                                                            : 'bg-[var(--bg-card)] border border-[var(--border-card)] text-[var(--text-primary)] rounded-bl-none shadow'
+                                                        ? 'bg-emerald-600 text-white rounded-br-none shadow-lg'
+                                                        : 'bg-[var(--bg-card)] border border-[var(--border-card)] text-[var(--text-primary)] rounded-bl-none shadow'
                                                         }`}>
                                                         {msg.text}
                                                         <p className={`text-[9px] mt-1 opacity-60 ${msg.senderId === user.id ? 'text-right' : 'text-left'}`}>
@@ -196,7 +201,19 @@ const ChatDrawer = ({ isOpen, onClose }) => {
                                                 Requests Received
                                             </h4>
                                             <div className="space-y-3">
-                                                {collaborations.received.map(req => (
+                                                {(() => {
+                                                    // Deduplicate by Listing ID + Sender ID to avoid repeated cards for same intent
+                                                    const unique = [];
+                                                    const map = new Map();
+                                                    collaborations.received.filter(r => r.status === 'Pending').forEach(item => {
+                                                        const key = `${item.senderId?._id}-${item.listingId?._id || 'none'}`;
+                                                        if (!map.has(key)) {
+                                                            map.set(key, true);
+                                                            unique.push(item);
+                                                        }
+                                                    });
+                                                    return unique;
+                                                })().map(req => (
                                                     <div key={req._id} className="kk-card p-4 border-l-4 border-l-amber-500">
                                                         <div className="flex items-center gap-3 mb-2">
                                                             <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-xs text-white font-bold">
@@ -238,28 +255,31 @@ const ChatDrawer = ({ isOpen, onClose }) => {
                                         </h4>
                                         {loading ? (
                                             <div className="flex justify-center py-8"><Loader2 className="animate-spin text-emerald-500" /></div>
-                                        ) : collaborations.chats.length > 0 ? (
-                                            <div className="space-y-2">
-                                                {collaborations.chats.map(chat => (
-                                                    <button
-                                                        key={chat._id}
-                                                        onClick={() => setActiveChat(chat)}
-                                                        className="w-full text-left p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-card)] hover:border-emerald-500 transition-all flex items-center gap-4 group"
-                                                    >
-                                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/20">
-                                                            {chat.participants.find(p => p._id !== user.id)?.fullName.charAt(0)}
-                                                        </div>
-                                                        <div className="flex-1 overflow-hidden">
-                                                            <p className="text-sm font-bold text-[var(--text-primary)] group-hover:text-emerald-500 transition-colors">
-                                                                {chat.participants.find(p => p._id !== user.id)?.fullName}
-                                                            </p>
-                                                            <p className="text-xs text-secondary truncate">
-                                                                {chat.messages[chat.messages.length - 1]?.text || 'No messages yet'}
-                                                            </p>
-                                                        </div>
-                                                        <ChevronRight size={16} className="text-secondary opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-1" />
-                                                    </button>
-                                                ))}
+                                        ) : collaborations.chats && collaborations.chats.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {/* Filter out any potential duplicate chats by ID for clean UI */}
+                                                {Array.from(new Map(collaborations.chats.map(chat => [chat._id, chat])).values())
+                                                    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+                                                    .map(chat => (
+                                                        <button
+                                                            key={chat._id}
+                                                            onClick={() => setActiveChat(chat)}
+                                                            className="w-full text-left p-4 rounded-[1.5rem] bg-[var(--bg-card)] border border-[var(--border-card)] hover:border-emerald-500 transition-all flex items-center gap-4 group shadow-sm hover:shadow-md"
+                                                        >
+                                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/20">
+                                                                {chat.participants?.find(p => p._id !== user.id)?.fullName?.charAt(0) || 'F'}
+                                                            </div>
+                                                            <div className="flex-1 overflow-hidden">
+                                                                <p className="text-sm font-bold text-[var(--text-primary)] group-hover:text-emerald-500 transition-colors">
+                                                                    {chat.participants?.find(p => p._id !== user.id)?.fullName || 'Farmer Partner'}
+                                                                </p>
+                                                                <p className="text-xs text-secondary truncate">
+                                                                    {chat.messages[chat.messages.length - 1]?.text || 'No messages yet'}
+                                                                </p>
+                                                            </div>
+                                                            <ChevronRight size={16} className="text-secondary opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-1" />
+                                                        </button>
+                                                    ))}
                                             </div>
                                         ) : (
                                             <div className="text-center py-12 border-2 border-dashed border-[var(--border-card)] rounded-2xl">

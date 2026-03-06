@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cropAPI, geminiAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
 import AIKeyModal from '../../components/AIKeyModal';
 
 // ── Popular Indian crops with emoji ─────────────────────────────────────────
@@ -100,6 +101,7 @@ const BulletList = ({ items, dotColor = 'bg-green-500' }) => (
 // ── Main Page ────────────────────────────────────────────────────────────────
 const CropManagement = () => {
   const { lang, t } = useLanguage();
+  const { isDark } = useTheme();
 
   // ── My Crops state ──────────────────────────────────────────────────────────
   const [myCrops, setMyCrops] = useState([]);
@@ -235,7 +237,7 @@ const CropManagement = () => {
   const finalCropName = customCrop.trim() || selectedCrop;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50">
+    <div className={`min-h-screen ${isDark ? 'kk-page-dark' : 'kk-page-light'}`} style={{ backgroundColor: 'var(--bg-page)' }}>
       <style>{`
         @keyframes fadeUp {
           from { opacity:0; transform:translateY(18px); }
@@ -272,7 +274,7 @@ const CropManagement = () => {
         </div>
 
         {/* ── Tabs ───────────────────────────────────────────────────── */}
-        <div className="flex gap-2 mb-7 bg-white rounded-2xl p-1.5 shadow border border-gray-100 fade-up">
+        <div className="flex gap-2 mb-7 bg-[var(--bg-card)] rounded-2xl p-1.5 shadow border border-[var(--border-card)] fade-up">
           {[
             { id: 'guide', label: t('Crop Guide'), icon: ClipboardList },
             { id: 'mycrops', label: `${t('My Crops')} (${myCrops.length})`, icon: Sprout },
@@ -298,7 +300,7 @@ const CropManagement = () => {
           <div className="space-y-6">
 
             {/* ── Step 1: Select Crop ─────────────────────────────── */}
-            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 fade-up">
+            <div className="bg-[var(--bg-card)] rounded-3xl shadow-xl border border-[var(--border-card)] p-6 fade-up">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">1</div>
                 <h2 className="text-lg font-bold text-gray-900">{t('Select Your Crop')}</h2>
@@ -354,7 +356,7 @@ const CropManagement = () => {
             </div>
 
             {/* ── Step 2: Enter Area ──────────────────────────────── */}
-            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 fade-up">
+            <div className="bg-[var(--bg-card)] rounded-3xl shadow-xl border border-[var(--border-card)] p-6 fade-up">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-600 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">2</div>
                 <h2 className="text-lg font-bold text-gray-900">{t('Enter Your Land Area')}</h2>
@@ -668,7 +670,7 @@ const CropManagement = () => {
         {activeTab === 'mycrops' && (
           <div className="space-y-5 fade-up">
             {/* Add new crop button / form */}
-            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+            <div className="bg-[var(--bg-card)] rounded-3xl shadow-xl border border-[var(--border-card)] p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                   <Sprout size={20} className="text-emerald-500" /> {t('My Crops')}

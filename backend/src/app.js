@@ -18,6 +18,7 @@ import marketRoutes from './routes/market.routes.js';
 import mlServerRoutes from './routes/mlServer.routes.js';
 import geminiRoutes from './routes/gemini.routes.js';
 import supplyChainRoutes from './routes/supplyChain.routes.js';
+import schemeRoutes from './routes/scheme.routes.js';
 
 // --- Import Error Middleware ---
 import { errorHandler } from './middleware/error.middleware.js';
@@ -32,6 +33,10 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://krishi-kavach.netlify.app',
+  'https://krishi-kavach.netlify.app/',
   'https://krushikavach.netlify.app',
   'https://krushikavach.netlify.app/'
 ];
@@ -74,6 +79,7 @@ app.use('/api/v1/market', marketRoutes);
 app.use('/api/v1/ml-server', mlServerRoutes);
 app.use('/api/v1/disease-info', geminiRoutes);
 app.use('/api/v1/supply-chain', supplyChainRoutes);
+app.use('/api/v1/schemes', schemeRoutes);
 
 // --- 404 Handler for unknown routes ---
 app.use((req, res, next) => {

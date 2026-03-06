@@ -4,8 +4,10 @@ import Crop from "../models/crop.model.js";
 import Media from "../models/media.model.js";
 import { uploadToCloudinary } from "../services/cloudinary.service.js";
 import { analyzeCropDisease, identifyCropWithAI } from "../services/diseaseDetection.service.js";
+import { sendWhatsAppReport } from "../services/whatsapp.service.js";
 import axios from "axios";
 import FormData from "form-data";
+import fs from "fs";
 
 // --------------------------------------------------------------
 // 🏠 LOCAL ML SERVER CONFIG (FastAPI running app.py on port 8000)
@@ -249,6 +251,23 @@ export const detectDiseaseML = asyncHandler(async (req, res) => {
       },
     });
 
+    // ── WhatsApp Automation (Background) ──
+    try {
+      if (req.user.mobileNumber) {
+        sendWhatsAppReport({
+          to: req.user.mobileNumber,
+          farmerName: req.user.fullName,
+          cropName: normalizedCrop,
+          diseaseName: prediction,
+          confidence: confidence,
+          imageURL: report.imageURL,
+          summary: mlData.details?.diagnosis || "",
+        });
+      }
+    } catch (wsErr) {
+      console.error("[WhatsApp] Automation trigger failed:", wsErr.message);
+    }
+
   } catch (error) {
     console.error("ML prediction error:", error.message);
 
@@ -280,6 +299,18 @@ export const identifyCropML = asyncHandler(async (req, res) => {
     // For debugging and tracking
     console.log(`[+] AI Result: Relevant=${aiResult.relevant}, Crop=${aiResult.detectedCrop} (${aiResult.confidence}%)`);
 
+    // Normalize detected crop name to match frontend IDs
+    if (aiResult.detectedCrop) {
+      aiResult.detectedCrop = aiResult.detectedCrop
+        .replace(/_\(maize\)/i, '')
+        .replace(/,.*$/i, '')
+        .replace(/_/g, ' ')
+        .split(' ')[0]; // Take first word (e.g. "Corn" from "Corn (maize)")
+
+      // Capitalize
+      aiResult.detectedCrop = aiResult.detectedCrop.charAt(0).toUpperCase() + aiResult.detectedCrop.slice(1).toLowerCase();
+    }
+
     res.json(aiResult);
   } catch (error) {
     console.error("AI Identification error:", error.message);
@@ -298,11 +329,22 @@ export const identifyCropML = asyncHandler(async (req, res) => {
         timeout: 10000,
       });
 
-      res.json(mlResponse.data);
+      let resData = mlResponse.data;
+      if (resData.detectedCrop) {
+        resData.detectedCrop = resData.detectedCrop
+          .replace(/_\(maize\)/i, '')
+          .replace(/,.*$/i, '')
+          .replace(/_/g, ' ')
+          .split(' ')[0];
+        resData.detectedCrop = resData.detectedCrop.charAt(0).toUpperCase() + resData.detectedCrop.slice(1).toLowerCase();
+      }
+
+      res.json(resData);
     } catch (fallbackError) {
       res.status(500).json({
         message: "Crop identification failed",
-        error: error.message,
+        error: fallbackError.message,
+        primaryError: error.message
       });
     }
   }

@@ -18,6 +18,7 @@ import DiseaseReports from './pages/farmer/DiseaseReports';
 import Weather from './pages/farmer/Weather';
 import Market from './pages/farmer/Market';
 import SupplyChainDashboard from './pages/farmer/SupplyChainDashboard';
+import Schemes from './pages/farmer/Schemes';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -33,7 +34,7 @@ import AgronomistProfile from './pages/agronomist/AgronomistProfile';
 
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="kk-page">
         <Navbar />
         <Routes>
@@ -53,6 +54,7 @@ function App() {
           <Route path="/farmer/weather" element={<ProtectedRoute allowedRoles={['farmer']}><Weather /></ProtectedRoute>} />
           <Route path="/farmer/market" element={<ProtectedRoute allowedRoles={['farmer']}><Market /></ProtectedRoute>} />
           <Route path="/farmer/supply-chain" element={<ProtectedRoute allowedRoles={['farmer']}><SupplyChainDashboard /></ProtectedRoute>} />
+          <Route path="/farmer/schemes/:id?" element={<ProtectedRoute allowedRoles={['farmer']}><Schemes /></ProtectedRoute>} />
           <Route path="/farmer/profile" element={<ProtectedRoute allowedRoles={['farmer']}><UserProfile /></ProtectedRoute>} />
 
           {/* Admin Routes */}

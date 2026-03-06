@@ -49,6 +49,7 @@ const STATIC_TRANSLATIONS = {
     'hi::Find Prices for Any Commodity': 'किसी भी जिंस के लिए कीमतें खोजें',
     'hi::Get Prices': 'कीमतें पाएं',
     'hi::Search Any Commodity': 'कोई भी जिंस खोजें',
+    'hi::Share to WhatsApp': 'WhatsApp पर साझा करें',
     // Marathi overrides
     'mr::Agronomist': 'कृषी तज्ज्ञ',
     'mr::Agronomists': 'कृषी तज्ज्ञ',
@@ -93,6 +94,7 @@ const STATIC_TRANSLATIONS = {
     'mr::Find Prices for Any Commodity': 'कोणत्याही वस्तूसाठी किंमती शोधा',
     'mr::Get Prices': 'किंमती मिळवा',
     'mr::Search Any Commodity': 'कोणतीही वस्तू शोधा',
+    'mr::Share to WhatsApp': 'WhatsApp वर शेअर करा',
 };
 
 // MyMemory free API — 500 chars/request limit
@@ -333,6 +335,20 @@ export const LanguageProvider = ({ children }) => {
         'Tap to See Prices', 'No crops added yet', 'Add crops in', 'to see live market prices here.',
         'Showing', 'Price', 'Search Any Commodity', 'Find Prices for Any Commodity', 'Get Prices',
         'Adding…',
+        'Share to WhatsApp',
+        // Supply Chain
+        'Supply Chain Network', 'Collaborate with nearby farmers to reduce transport costs and reach better markets.',
+        'Post New Listing', 'Filter Network', 'Search city (e.g. Pune, Sangli)...', 'Search Radius',
+        'Nearby Results', 'No farmers found in this range.', 'Locating you on the map...', 'You are here',
+        'Active Farmer', 'Yield', 'Need Collab', 'Selling At', 'Road Distance', 'Collaborate', 'Call',
+        'TARGET DESTINATION', 'REMOVE', 'DONE', 'GALLERY', 'PRICES', 'Verified agricultural processing center.',
+        'Back', 'No rates found.', 'SELL', 'Post Crop for Supply Chain', 'Crop Details', 'Prices Available',
+        'Quick-Select Price from', 'Crop Type', 'Quantity', 'Unit', 'Price (per unit)', 'Total Yield',
+        'Description', 'AUTO-GENERATE WITH AI', 'WRITING...', 'City/Base Location', 'Target Destination (Auto-filled)',
+        'Select from map...', 'Quantity for Collab', 'Preferred Transport', 'Contact Number', 'Available Date',
+        'Post for Collaboration', 'Current Market Rates', 'No price data available for this facility yet.',
+        'These prices are updated by the facility management or scraped from official market sources. Contact the facility directly to confirm current rates before transport.',
+        'Request Collab'
     ];
 
     useEffect(() => {

@@ -82,7 +82,7 @@ const AreaTooltip = ({ active, payload, label }) => {
     const { isDark } = useTheme();
     if (!active || !payload?.length) return null;
     return (
-        <div style={{ background: isDark ? '#1e1b4b' : 'white', border: isDark ? '1px solid #4338ca' : '1px solid #e2e8f0', borderRadius: 16, padding: '10px 16px', boxShadow: isDark ? '0 8px 32px rgba(99,102,241,0.35)' : '0 8px 24px rgba(0,0,0,0.1)' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', borderRadius: 16, padding: '10px 16px', boxShadow: 'var(--shadow-lg)' }}>
             <p style={{ color: isDark ? '#a5b4fc' : '#4f46e5', fontSize: 11, marginBottom: 2 }}>{label}</p>
             <p style={{ color: isDark ? '#fff' : '#1e293b', fontWeight: 800, fontSize: 15 }}>
                 ₹{payload[0]?.value?.toLocaleString('en-IN')}<span style={{ fontSize: 10, color: isDark ? '#c4b5fd' : '#64748b', fontWeight: 500 }}>/qtl</span>
@@ -571,9 +571,8 @@ const Market = () => {
 
     return (
         <div style={{
-            minHeight: '100vh', background: isDark
-                ? 'linear-gradient(135deg,#0a0f1e 0%,#0f0a1e 50%,#0a1020 100%)'
-                : 'linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 50%,#f0f4ff 100%)'
+            minHeight: '100vh',
+            background: 'var(--bg-page)'
         }}>
             <style>{`
                 @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
@@ -588,9 +587,9 @@ const Market = () => {
 
                 {/* ── Header ───────────────────────────────────────────────── */}
                 <div className="fade-up" style={{
-                    background: isDark ? 'linear-gradient(135deg,#1e1b4b,#312e81)' : 'linear-gradient(135deg,#10b981,#059669)',
+                    background: 'var(--bg-header)',
                     borderRadius: 28, padding: '24px 28px',
-                    border: isDark ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(16,185,129,0.3)',
+                    border: '1px solid var(--border-accent)',
                     position: 'relative', overflow: 'hidden'
                 }}>
                     <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: isDark ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.1)', top: -120, right: -60, pointerEvents: 'none' }} />
@@ -601,7 +600,7 @@ const Market = () => {
                             </div>
                             <div>
                                 <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 800, margin: 0 }}>{t('Market Prices')}</h1>
-                                <p style={{ color: isDark ? '#a5b4fc' : '#ecfdf5', fontSize: 13, margin: '4px 0 0' }}>
+                                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, margin: '4px 0 0' }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                         <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
                                         Live AI Intelligence · <MapPin size={12} /> {district}
@@ -638,7 +637,7 @@ const Market = () => {
                             {[1, 2, 3, 4].map(i => <Sk key={i} h={90} />)}
                         </div>
                     ) : myCrops.length === 0 ? (
-                        <div style={{ background: isDark ? 'rgba(255,255,255,0.03)' : 'white', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0', borderRadius: 24, textAlign: 'center', padding: '48px 24px' }}>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', borderRadius: 24, textAlign: 'center', padding: '48px 24px' }}>
                             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
                                 <Sprout size={48} className={isDark ? "text-emerald-500/20" : "text-emerald-500/40"} />
                             </div>
@@ -685,7 +684,7 @@ const Market = () => {
 
                 {/* ── Commodity Search ──────────────────────────────────────── */}
                 <section className="fade-up">
-                    <div style={{ background: isDark ? 'rgba(255,255,255,0.03)' : 'white', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0', borderRadius: 24, padding: 24, boxShadow: isDark ? 'none' : '0 10px 25px rgba(0,0,0,0.04)' }}>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', borderRadius: 24, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
                         <h2 style={{ color: isDark ? '#f1f5f9' : '#1e293b', fontSize: 17, fontWeight: 800, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                             <Search size={20} className="text-violet-400" /> {t('Find Prices for Any Commodity')}
                         </h2>

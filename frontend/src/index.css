@@ -12,31 +12,31 @@
   /* Backgrounds */
   --bg-page: #0a0f1e;
   --bg-page-2: #060a14;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-solid: #111827;
-  --bg-card-hover: rgba(255, 255, 255, 0.07);
-  --bg-input: rgba(99, 102, 241, 0.08);
+  --bg-card: rgba(30, 41, 59, 0.7);
+  --bg-card-solid: #0f172a;
+  --bg-card-hover: rgba(51, 65, 85, 0.8);
+  --bg-input: rgba(15, 23, 42, 0.6);
   --bg-navbar: linear-gradient(135deg, #1e1b4b, #312e81);
-  --bg-panel: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+  --bg-panel: #0f172a;
   --bg-header: linear-gradient(135deg, #4338ca, #7c3aed);
 
   /* Borders */
-  --border-card: rgba(255, 255, 255, 0.08);
-  --border-accent: rgba(99, 102, 241, 0.35);
-  --border-input: rgba(99, 102, 241, 0.25);
+  --border-card: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(99, 102, 241, 0.4);
+  --border-input: rgba(148, 163, 184, 0.2);
 
   /* Text */
-  --text-primary: #f1f5f9;
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --text-accent: #a5b4fc;
-  --text-link: #818cf8;
+  --text-muted: #64748b;
+  --text-accent: #818cf8;
+  --text-link: #6366f1;
 
   /* Accent */
   --accent-primary: #6366f1;
   --accent-secondary: #8b5cf6;
   --accent-emerald: #10b981;
-  --accent-teal: #06b6d4;
+  --accent-teal: #14b8a6;
   --accent-amber: #f59e0b;
   --accent-red: #ef4444;
 
@@ -55,33 +55,33 @@
 ══════════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
   /* Backgrounds */
-  --bg-page: #f0f4ff;
-  --bg-page-2: #e8eeff;
+  --bg-page: #f8faff;
+  --bg-page-2: #ffffff;
   --bg-card: #ffffff;
   --bg-card-solid: #ffffff;
-  --bg-card-hover: #f5f3ff;
-  --bg-input: #f5f3ff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f8fafc;
   --bg-navbar: linear-gradient(135deg, #4338ca, #7c3aed);
   --bg-panel: #ffffff;
   --bg-header: linear-gradient(135deg, #4338ca, #7c3aed);
 
   /* Borders */
   --border-card: #e2e8f0;
-  --border-accent: rgba(99, 102, 241, 0.4);
-  --border-input: #c7d2fe;
+  --border-accent: rgba(99, 102, 241, 0.3);
+  --border-input: #cbd5e1;
 
   /* Text */
-  --text-primary: #1e1b4b;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
-  --text-accent: #4f46e5;
-  --text-link: #4338ca;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-accent: #4338ca;
+  --text-link: #6366f1;
 
   /* Accent */
-  --accent-primary: #6366f1;
-  --accent-secondary: #8b5cf6;
+  --accent-primary: #4f46e5;
+  --accent-secondary: #7c3aed;
   --accent-emerald: #059669;
-  --accent-teal: #0891b2;
+  --accent-teal: #0d9488;
   --accent-amber: #d97706;
   --accent-red: #dc2626;
 

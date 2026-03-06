@@ -8,20 +8,26 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const [counts, setCounts] = useState({ farmers: '—', agronomists: '—', pending: '—' });
+  const [alerts, setAlerts] = useState([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(true);
 
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [fRes, aRes] = await Promise.all([
-          adminAPI.getAllFarmers?.().catch(() => null),
-          adminAPI.getAllAgronomists?.().catch(() => null),
+        const [fRes, aRes, alertRes] = await Promise.all([
+          adminAPI.listFarmers?.().catch(() => null),
+          adminAPI.listAgronomists?.().catch(() => null),
+          adminAPI.getOutbreakAlerts?.().catch(() => null),
         ]);
         setCounts({
           farmers: fRes?.data?.length ?? '—',
           agronomists: aRes?.data?.length ?? '—',
           pending: aRes?.data?.filter(a => !a.isVerified)?.length ?? '—',
         });
-      } catch { /* silent */ }
+        setAlerts(alertRes?.data ?? []);
+      } catch { /* silent */ } finally {
+        setLoadingAlerts(false);
+      }
     };
     loadCounts();
   }, []);
@@ -79,8 +85,8 @@ const AdminDashboard = () => {
 
   return (
     <div className={`min-h-screen ${isDark
-        ? 'bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800'
-        : 'bg-gradient-to-br from-[#f0f4ff] via-[#e8eeff] to-[#f0f4ff]'
+      ? 'bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800'
+      : 'bg-gradient-to-br from-[#f0f4ff] via-[#e8eeff] to-[#f0f4ff]'
       }`}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
@@ -133,8 +139,8 @@ const AdminDashboard = () => {
           {adminCards.map((card) => (
             <Link key={card.to} to={card.to}
               className={`group card-lift border rounded-3xl overflow-hidden transition-all ${isDark
-                  ? 'bg-white/5 border-white/10 backdrop-blur hover:border-white/20 hover:bg-white/8'
-                  : 'bg-white border-gray-200 shadow-sm hover:shadow-xl hover:border-indigo-200'
+                ? 'bg-white/5 border-white/10 backdrop-blur hover:border-white/20 hover:bg-white/8'
+                : 'bg-white border-gray-200 shadow-sm hover:shadow-xl hover:border-indigo-200'
                 }`}>
               <div className={`h-2 bg-gradient-to-r ${card.gradient}`} />
               <div className="p-8">
@@ -158,28 +164,76 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* ── Platform Overview ─────────────────────────────────────────── */}
-        <div className={`rounded-3xl p-6 fade-up ${isDark ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200 shadow-sm'
-          }`}>
-          <h2 className={`text-lg font-extrabold mb-5 flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1e1b4b]'}`}>
-            ⚡ Platform Overview
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: '🌾', label: 'Disease Detection', desc: 'YOLO AI model for crop disease' },
-              { icon: '☁️', label: 'Weather Service', desc: 'OpenWeatherMap integration' },
-              { icon: '🤖', label: 'AI Assistant', desc: 'Intelligent crop & market insights' },
-              { icon: '🌐', label: 'Multi-Language', desc: 'English, Hindi, Marathi' },
-            ].map((item, i) => (
-              <div key={i} className={`rounded-2xl p-4 ${isDark ? 'bg-white/5 border border-white/10' : 'bg-indigo-50 border border-indigo-100'
-                }`}>
-                <div className="text-2xl mb-2">{item.icon}</div>
-                <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-[#1e1b4b]'}`}>{item.label}</p>
-                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.desc}</p>
-              </div>
-            ))}
+        {/* ── Disease Outbreak Alerts (Hotspots) ── */}
+        <div className={`rounded-3xl p-6 fade-up border-2 ${alerts.length > 0 ? 'border-red-500/50 bg-red-500/5' : isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className={`text-xl font-extrabold flex items-center gap-3 ${isDark ? 'text-white' : 'text-[#1e1b4b]'}`}>
+              <span className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${alerts.length > 0 ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 dark:bg-white/10'}`}>🚨</span>
+              Disease Outbreak Alerts
+            </h2>
+            {alerts.length > 0 && (
+              <span className="bg-red-500 text-white text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                Action Required
+              </span>
+            )}
           </div>
+
+          {loadingAlerts ? (
+            <div className="flex items-center gap-3 py-8 justify-center">
+              <div className="w-6 h-6 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-500 font-bold">Scanning for outbreaks...</p>
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="text-center py-12 bg-white/5 rounded-2xl border border-dashed border-white/10">
+              <p className="text-gray-400 font-medium">No outbreaks detected in the last 14 days.</p>
+              <p className="text-xs text-gray-500 mt-1">Platform monitor is active and stable.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {alerts.map((alert, idx) => (
+                <div key={idx} className="relative overflow-hidden bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-all cursor-pointer group">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1">High Risk Hotspot</p>
+                      <h4 className="text-lg font-extrabold text-white">{alert._id.disease}</h4>
+                    </div>
+                    <div className="bg-red-500/20 text-red-500 font-black text-xl px-3 py-1 rounded-xl">
+                      {alert.count}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">📍</span>
+                    <p className="text-sm font-bold text-gray-200">{alert._id.district} District</p>
+                  </div>
+
+                  <div className="space-y-2 mb-5">
+                    <p className="text-xs text-gray-400 flex items-center gap-2">
+                      <span className="w-1 h-1 bg-red-400 rounded-full" />
+                      Affected Farmers: {alert.farmers.join(', ')}
+                    </p>
+                    <p className="text-xs text-gray-400 flex items-center gap-2">
+                      <span className="w-1 h-1 bg-red-400 rounded-full" />
+                      Last Detected: {new Date(alert.lastDetected).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const message = `URGENT: Disease Outbreak Alert\nDisease: ${alert._id.disease}\nDistrict: ${alert._id.district}\nAffected Farmers: ${alert.count}\nDetected on: ${new Date(alert.lastDetected).toLocaleDateString()}\n\nPlease take immediate control measures.`;
+                      window.open(`mailto:officer@agriculture.gov.in?subject=Disease Alert: ${alert._id.disease} in ${alert._id.district}&body=${encodeURIComponent(message)}`);
+                    }}
+                    className="w-full bg-red-500/10 border border-red-500/30 text-red-500 group-hover:bg-red-500 group-hover:text-white py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  >
+                    🚀 Notify Government Officer
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* ── Platform Overview ── */}
       </div>
     </div>
   );

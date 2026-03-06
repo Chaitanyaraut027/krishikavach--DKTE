@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { adminAPI } from '../../services/api';
-import { Plus, Trash2, MapPin, Phone, Building2, Image as ImageIcon, ChevronLeft, ChevronRight, Table as TableIcon, Globe, Map as MapIcon, X } from 'lucide-react';
+import { adminAPI, marketAPI } from '../../services/api';
+import { Plus, Trash2, MapPin, Phone, Building2, Image as ImageIcon, ChevronLeft, ChevronRight, Table as TableIcon, Globe, Map as MapIcon, X, RefreshCcw, Edit2 } from 'lucide-react';
 import MultiImageUpload from '../../components/MultiImageUpload';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -41,7 +41,22 @@ const JsonEditorModal = ({ isOpen, onClose, onSave, initialData }) => {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full shadow-2xl">
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.15);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.25);
+        }
+      `}</style>
+      <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl custom-scrollbar">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <TableIcon className="text-emerald-400" size={20} />
@@ -49,7 +64,7 @@ const JsonEditorModal = ({ isOpen, onClose, onSave, initialData }) => {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
         </div>
-        
+
         <div className="mb-4">
           <p className="text-xs text-gray-400 mb-2">JSON Format: <code className="bg-white/5 px-1 rounded">{'[{"crop": "Name", "price": 0, "unit": "kg"}]'}</code></p>
           <textarea
@@ -86,6 +101,7 @@ const Facilities = () => {
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: 'Ginning Mill',
@@ -113,15 +129,32 @@ const Facilities = () => {
     }
   };
 
+  const handleTriggerScrape = async () => {
+    try {
+      setScraping(true);
+      await marketAPI.triggerScrape();
+      alert("Manual scrape triggered! Facilities and prices are being updated in the background.");
+      fetchFacilities();
+    } catch (err) {
+      alert("Error triggering scrape");
+    } finally {
+      setScraping(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.addFacility(formData);
+      if (selectedFacility && showModal) {
+        await adminAPI.updateFacility(selectedFacility._id, formData);
+      } else {
+        await adminAPI.addFacility(formData);
+      }
       setShowModal(false);
       fetchFacilities();
       resetForm();
     } catch (err) {
-      alert("Error adding facility");
+      alert("Error saving facility");
     }
   };
 
@@ -131,6 +164,7 @@ const Facilities = () => {
       location: { type: 'Point', coordinates: [74.26, 16.65] },
       images: [], marketPrices: []
     });
+    setSelectedFacility(null);
   };
 
   const handleUpdatePrices = async (id, marketPrices) => {
@@ -160,12 +194,22 @@ const Facilities = () => {
             <h1 className="text-3xl font-extrabold text-white">Facility Management</h1>
             <p className="text-gray-400">Manage Ginning Mills, Processing Centers, and Warehouses</p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-orange-600/20 transition-all"
-          >
-            <Plus size={20} /> Add Facility
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={handleTriggerScrape}
+              disabled={scraping}
+              className="px-6 py-3 bg-white/5 border border-white/10 text-emerald-400 rounded-2xl font-bold flex items-center gap-2 hover:bg-white/10 transition-all disabled:opacity-50"
+            >
+              <RefreshCcw size={20} className={scraping ? 'animate-spin' : ''} />
+              {scraping ? 'Updating...' : 'Sync Data'}
+            </button>
+            <button
+              onClick={() => { resetForm(); setShowModal(true); }}
+              className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-orange-600/20 transition-all"
+            >
+              <Plus size={20} /> Add Facility
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -181,7 +225,27 @@ const Facilities = () => {
                     <Building2 size={24} />
                   </div>
                   <div className="flex gap-2">
-                    <button 
+                    <button
+                      onClick={() => {
+                        setSelectedFacility(f);
+                        setFormData({
+                          name: f.name,
+                          type: f.type,
+                          city: f.city,
+                          contact: f.contact,
+                          website: f.website,
+                          location: f.location,
+                          images: f.images || [],
+                          marketPrices: f.marketPrices || []
+                        });
+                        setShowModal(true);
+                      }}
+                      className="text-blue-400 hover:bg-blue-400/10 p-2 rounded-xl transition-all"
+                      title="Edit Details"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
                       onClick={() => {
                         setSelectedFacility(f);
                         setShowPriceModal(true);
@@ -207,7 +271,7 @@ const Facilities = () => {
                     </a>
                   )}
                 </div>
-                
+
                 {/* Price Preview */}
                 {f.marketPrices?.length > 0 && (
                   <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/5">
@@ -240,11 +304,13 @@ const Facilities = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-gray-900 border border-white/10 rounded-3xl p-8 max-w-4xl w-full shadow-2xl my-8">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Add New Facility</h2>
-              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-white"><X /></button>
+              <h2 className="text-xl font-bold text-white">{selectedFacility ? 'Edit Facility' : 'Add New Facility'}</h2>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-white p-2">
+                <X size={24} />
+              </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
@@ -367,7 +433,7 @@ const Facilities = () => {
       )}
 
       {showPriceModal && selectedFacility && (
-        <JsonEditorModal 
+        <JsonEditorModal
           isOpen={showPriceModal}
           onClose={() => setShowPriceModal(false)}
           initialData={selectedFacility.marketPrices}

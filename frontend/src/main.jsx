@@ -7,6 +7,7 @@ import { LanguageProvider } from './context/LanguageContext'
 import { AuthProvider } from './context/AuthContext'
 import { ChatbotProvider } from './context/ChatbotContext'
 import LanguageGuard from './components/LanguageGuard'
+import './i18n/config'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

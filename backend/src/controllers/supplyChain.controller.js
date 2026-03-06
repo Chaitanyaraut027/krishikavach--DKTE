@@ -3,6 +3,8 @@ import CollaborationRequest from '../models/collaborationRequest.model.js';
 import CollaborationChat from '../models/collaborationChat.model.js';
 import ProcessingCenter from '../models/processingCenter.model.js';
 import axios from 'axios';
+import { fetchNearbyFacilities } from '../services/places.service.js';
+const ML_SERVER_URL = process.env.ML_SERVER_URL || "http://localhost:8000";
 
 // Ensure axios is available globally in this module if default import fails
 const _axios = axios;
@@ -12,7 +14,7 @@ const _axios = axios;
  */
 export const createListing = async (req, res) => {
     try {
-        const { 
+        const {
             cropType, quantity, unit, price, availabilityDate, longitude, latitude, description,
             city, yieldAmount, neededAmount, destinationName, preferredTransport, contactPhone,
             destinationLongitude, destinationLatitude, listingImage
@@ -145,11 +147,25 @@ export const updateRequestStatus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Request not found' });
         }
 
+        if (request.status !== 'Pending') {
+            return res.status(400).json({ success: false, message: 'Request already processed' });
+        }
+
         request.status = status;
 
         if (status === 'Accepted') {
-            // Mark the listing as Sold/Collaborated so it doesn't show for others
+            // Mark the listing as Sold/Collaborated
             await SupplyChainListing.findByIdAndUpdate(request.listingId, { status: 'Sold' });
+
+            // Auto-reject other pending requests for the same listing
+            await CollaborationRequest.updateMany(
+                {
+                    listingId: request.listingId,
+                    _id: { $ne: request._id },
+                    status: 'Pending'
+                },
+                { status: 'Rejected' }
+            );
 
             // Create chat room
             const chat = await CollaborationChat.create({
@@ -166,17 +182,27 @@ export const updateRequestStatus = async (req, res) => {
 
         await request.save();
 
+        let responseData = request;
+        if (status === 'Accepted' && request.chatId) {
+            responseData = await CollaborationChat.findById(request.chatId)
+                .populate('participants', 'fullName')
+                .populate({
+                    path: 'requestId',
+                    populate: { path: 'listingId' }
+                });
+        }
+
         // Emit real-time notification to the sender
         const io = req.app.get('socketio');
         if (io) {
             io.emit(`notification_${request.senderId}`, {
                 type: 'REQUEST_UPDATE',
                 message: `Your collaboration request was ${status}`,
-                data: request
+                data: responseData
             });
         }
 
-        res.status(200).json({ success: true, data: request });
+        res.status(200).json({ success: true, data: responseData });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -187,11 +213,17 @@ export const updateRequestStatus = async (req, res) => {
  */
 export const getMyCollaborations = async (req, res) => {
     try {
-        const requestsReceived = await CollaborationRequest.find({ receiverId: req.user.id })
+        const requestsReceived = await CollaborationRequest.find({
+            receiverId: req.user.id,
+            status: 'Pending'
+        })
             .populate('senderId', 'fullName mobileNumber')
             .populate('listingId');
 
-        const requestsSent = await CollaborationRequest.find({ senderId: req.user.id })
+        const requestsSent = await CollaborationRequest.find({
+            senderId: req.user.id,
+            status: 'Pending'
+        })
             .populate('receiverId', 'fullName mobileNumber')
             .populate('listingId');
 
@@ -220,8 +252,8 @@ export const getMyCollaborations = async (req, res) => {
  */
 export const getExternalProcessingCenters = async (req, res) => {
     try {
-        const { latitude, longitude, radius = 50, city } = req.query; 
-        
+        const { latitude, longitude, radius = 50, city } = req.query;
+
         // 1. Search locally in our DB first
         let localCenters = [];
         if (latitude && longitude) {
@@ -235,11 +267,28 @@ export const getExternalProcessingCenters = async (req, res) => {
             }).limit(50);
         }
 
-        // 2. Call our Python Hybrid Service (Scraper + OSM)
-        const pythonServiceUrl = `http://localhost:8000/search-facilities?lat=${latitude}&lon=${longitude}&radius=${radius}${city ? `&city=${city}` : ''}`;
-        
+        // 2. If DB results are low, fetch fresh data from Google Places (Primary for real facilities)
+        if (localCenters.length < 10 && latitude && longitude) {
+            console.log('[*] Low local results. Fetching fresh facilities from Google Places...');
+            await fetchNearbyFacilities(latitude, longitude, radius * 1000);
+
+            // Re-query local DB to include new Google results
+            localCenters = await ProcessingCenter.find({
+                location: {
+                    $near: {
+                        $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+                        $maxDistance: radius * 1000
+                    }
+                }
+            }).limit(50);
+        }
+
+        // 3. Optional: Call our Python Hybrid Service (Scraper + OSM) for additional coverage
+        const pythonServiceUrl = `${ML_SERVER_URL}/search-facilities?lat=${latitude}&lon=${longitude}&radius=${radius}${city ? `&city=${city}` : ''}`;
+        console.log(`[*] Checking hybrid facilities from: ${pythonServiceUrl}`);
+
         console.log(`[*] Fetching hybrid facilities from: ${pythonServiceUrl}`);
-        
+
         let externalResults = [];
         try {
             const response = await _axios.get(pythonServiceUrl);
@@ -248,6 +297,8 @@ export const getExternalProcessingCenters = async (req, res) => {
 
                 // 3. Persist external results to DB for future use
                 for (const center of externalResults) {
+                    if (!center.id) continue; // Skip if no valid external ID to prevent unique index violation
+
                     await ProcessingCenter.findOneAndUpdate(
                         { externalId: center.id },
                         {
@@ -259,14 +310,14 @@ export const getExternalProcessingCenters = async (req, res) => {
                             source: center.source,
                             location: {
                                 type: "Point",
-                                coordinates: center.location 
+                                coordinates: center.location
                             },
                             lastUpdated: new Date()
                         },
                         { upsert: true, new: true }
                     );
                 }
-                
+
                 // Refresh local search to include newly added ones
                 localCenters = await ProcessingCenter.find({
                     location: {
@@ -280,23 +331,13 @@ export const getExternalProcessingCenters = async (req, res) => {
         } catch (err) {
             console.error("[-] Python Service Error:", err.message);
             if (localCenters.length === 0) {
-                 // Fallback to absolute minimal if even DB is empty and service is down
-                 localCenters = [{
-                    id: 'fallback_1',
-                    name: 'Rajashri Shahu Ginning (Fallback)',
-                    type: 'Processing Center',
-                    location: [74.582, 16.852],
-                    city: 'Sangli',
-                    contact: '+91 98765 43210',
-                    image: 'https://images.unsplash.com/photo-1590633717560-49651582e3b2',
-                    source: 'Fallback'
-                }];
+                localCenters = [];
             }
         }
 
-        res.status(200).json({ 
-            success: true, 
-            count: localCenters.length, 
+        res.status(200).json({
+            success: true,
+            count: localCenters.length,
             data: localCenters.map(c => ({
                 id: c.externalId || c._id,
                 _id: c._id,

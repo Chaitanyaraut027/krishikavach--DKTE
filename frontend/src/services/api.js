@@ -34,17 +34,24 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        // No refresh token available, must logout
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          const response = await axios.post(`${API_URL}/api/v1/auth/refresh-token`, {
-            refreshToken,
-          });
-          const { accessToken } = response.data;
-          localStorage.setItem('accessToken', accessToken);
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
-        }
+        const response = await axios.post(`${API_URL}/api/v1/auth/refresh-token`, {
+          refreshToken,
+        });
+        const { accessToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
       } catch (refreshError) {
         // Only logout if refresh truly fails
         localStorage.removeItem('accessToken');
@@ -55,8 +62,6 @@ api.interceptors.response.use(
       }
     }
 
-    // For 403 errors, don't log out - just reject the error
-    // Components should handle 403 errors appropriately
     return Promise.reject(error);
   }
 );
@@ -166,6 +171,7 @@ export const adminAPI = {
   addFertilizer: (data) => api.post('/admin/fertilizers', data),
   updateFertilizer: (id, data) => api.patch(`/admin/fertilizers/${id}`, data),
   deleteFertilizer: (id) => api.delete(`/admin/fertilizers/${id}`),
+  getOutbreakAlerts: () => api.get('/admin/outbreak-alerts'),
 };
 
 // Weather APIs
@@ -229,16 +235,24 @@ export const mediaAPI = {
   searchImages: async (query) => {
     try {
       const res = await fetch(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=3&orientation=landscape`,
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`,
         { headers: { Authorization: 'Client-ID kXvLl0bDDCxjVJf1VoC8kFBZ0rSNfA9Z3bXNGnV8Mrc' } }
       );
       if (!res.ok) throw new Error();
       const data = await res.json();
-      return data.results?.[0]?.urls?.regular || null;
+      if (!data.results || data.results.length === 0) throw new Error();
+      // Pick a semi-random image from the top results to avoid redundancy
+      const randomIndex = Math.floor(Math.random() * Math.min(data.results.length, 5));
+      return data.results[randomIndex]?.urls?.regular || data.results[0]?.urls?.regular;
     } catch {
-      return `https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=800&auto=format&fit=crop`;
+      return `https://images.unsplash.com/photo-1500382017468-9049fee74a62?q=80&w=800&auto=format&fit=crop`;
     }
   }
+};
+
+// Scheme APIs
+export const schemeAPI = {
+  getRecommendations: (lang) => api.get('/schemes/recommendations', { params: { lang } }),
 };
 
 export default api;
