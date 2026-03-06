@@ -348,7 +348,8 @@ export const LanguageProvider = ({ children }) => {
         'Select from map...', 'Quantity for Collab', 'Preferred Transport', 'Contact Number', 'Available Date',
         'Post for Collaboration', 'Current Market Rates', 'No price data available for this facility yet.',
         'These prices are updated by the facility management or scraped from official market sources. Contact the facility directly to confirm current rates before transport.',
-        'Request Collab'
+        'Request Collab', 'Cancel', 'Logistics & Location', 'Tractor', 'Truck', 'Trolley', 'Other',
+        'Farmer', 'Crop', 'Verified', 'Last Updated', 'Are you sure you want to remove this listing?'
     ];
 
     useEffect(() => {

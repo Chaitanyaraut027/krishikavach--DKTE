@@ -342,7 +342,7 @@ const SupplyChainDashboard = () => {
     };
 
     const handleDeleteListing = async (listingId) => {
-        if (!window.confirm("Are you sure you want to remove this listing?")) return;
+        if (!window.confirm(t("Are you sure you want to remove this listing?"))) return;
         try {
             await axios.delete(`/supply-chain/listings/${listingId}`);
             // Remove route from state immediately
@@ -1025,10 +1025,10 @@ const SupplyChainDashboard = () => {
 
                                     {/* Right Column - Logistics & Location */}
                                     <div className="space-y-4">
-                                        <h3 className="text-xs font-black text-blue-500 uppercase tracking-widest border-b border-blue-500/10 pb-2">Logistics & Location</h3>
+                                        <h3 className="text-xs font-black text-blue-500 uppercase tracking-widest border-b border-blue-500/10 pb-2">{t('Logistics & Location')}</h3>
 
                                         <div>
-                                            <label className="kk-muted block mb-1.5">City/Base Location</label>
+                                            <label className="kk-muted block mb-1.5">{t('City/Base Location')}</label>
                                             <input
                                                 required
                                                 type="text"
@@ -1040,12 +1040,12 @@ const SupplyChainDashboard = () => {
                                         </div>
 
                                         <div>
-                                            <label className="kk-muted block mb-1.5">Target Destination (Auto-filled)</label>
+                                            <label className="kk-muted block mb-1.5">{t('Target Destination (Auto-filled)')}</label>
                                             <div className="relative">
                                                 <input
                                                     type="text"
                                                     className="kk-input pr-10 border-blue-500/30 bg-blue-500/5"
-                                                    placeholder="Select from map..."
+                                                    placeholder={t("Select from map...")}
                                                     value={newListing.destinationName}
                                                     onChange={(e) => setNewListing({ ...newListing, destinationName: e.target.value })}
                                                 />
@@ -1055,7 +1055,7 @@ const SupplyChainDashboard = () => {
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Quantity for Collab</label>
+                                                <label className="kk-muted block mb-1.5">{t('Quantity for Collab')}</label>
                                                 <input
                                                     type="text"
                                                     className="kk-input"
@@ -1065,23 +1065,23 @@ const SupplyChainDashboard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Preferred Transport</label>
+                                                <label className="kk-muted block mb-1.5">{t('Preferred Transport')}</label>
                                                 <select
                                                     className="kk-input"
                                                     value={newListing.preferredTransport}
                                                     onChange={(e) => setNewListing({ ...newListing, preferredTransport: e.target.value })}
                                                 >
-                                                    <option>Tractor</option>
-                                                    <option>Truck</option>
-                                                    <option>Trolley</option>
-                                                    <option>Other</option>
+                                                    <option>{t('Tractor')}</option>
+                                                    <option>{t('Truck')}</option>
+                                                    <option>{t('Trolley')}</option>
+                                                    <option>{t('Other')}</option>
                                                 </select>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Contact Number</label>
+                                                <label className="kk-muted block mb-1.5">{t('Contact Number')}</label>
                                                 <input
                                                     required
                                                     type="tel"
@@ -1092,7 +1092,7 @@ const SupplyChainDashboard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="kk-muted block mb-1.5">Available Date</label>
+                                                <label className="kk-muted block mb-1.5">{t('Available Date')}</label>
                                                 <input
                                                     required
                                                     type="date"
@@ -1104,8 +1104,8 @@ const SupplyChainDashboard = () => {
                                         </div>
 
                                         <div className="pt-6 flex gap-3">
-                                            <button type="button" onClick={() => setShowListingModal(false)} className="kk-btn-ghost flex-1">Cancel</button>
-                                            <button type="submit" className="kk-btn-primary flex-1">Post for Collaboration</button>
+                                            <button type="button" onClick={() => setShowListingModal(false)} className="kk-btn-ghost flex-1">{t('Cancel')}</button>
+                                            <button type="submit" className="kk-btn-primary flex-1">{t('Post for Collaboration')}</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1139,7 +1139,7 @@ const SupplyChainDashboard = () => {
                                     </div>
                                     <div>
                                         <h2 className="text-xl font-bold">{selectedFacility.name}</h2>
-                                        <p className="text-xs text-white/70">Current Market Rates</p>
+                                        <p className="text-xs text-white/70">{t('Current Market Rates')}</p>
                                     </div>
                                 </div>
                                 <button onClick={() => setShowMarketModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
@@ -1152,18 +1152,18 @@ const SupplyChainDashboard = () => {
                                     <table className="min-w-full divide-y divide-gray-100">
                                         <thead className="bg-gray-50 uppercase text-[10px] font-black text-gray-400 tracking-widest">
                                             <tr>
-                                                <th className="px-6 py-4 text-left">Crop</th>
-                                                <th className="px-6 py-4 text-center">Price</th>
-                                                <th className="px-6 py-4 text-right">Last Updated</th>
+                                                <th className="px-6 py-4 text-left">{t('Crop')}</th>
+                                                <th className="px-6 py-4 text-center">{t('Price')}</th>
+                                                <th className="px-6 py-4 text-right">{t('Last Updated')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-100">
                                             {selectedFacility.marketPrices?.map((item, i) => (
                                                 <tr key={i} className="hover:bg-emerald-50/30 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{item.crop}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{t(item.crop)}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                                         <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full font-extrabold text-sm">
-                                                            ₹{item.price}/{item.unit}
+                                                            ₹{item.price}/{t(item.unit)}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs text-gray-500">
@@ -1175,7 +1175,7 @@ const SupplyChainDashboard = () => {
                                                 <tr>
                                                     <td colSpan="3" className="px-6 py-12 text-center text-gray-400 bg-gray-50/50">
                                                         <TableIcon size={32} className="mx-auto mb-3 opacity-20" />
-                                                        <p className="text-sm">No price data available for this facility yet.</p>
+                                                        <p className="text-sm">{t('No price data available for this facility yet.')}</p>
                                                     </td>
                                                 </tr>
                                             )}
@@ -1185,7 +1185,7 @@ const SupplyChainDashboard = () => {
                                 <div className="mt-6 flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                                     <Info className="text-emerald-600" size={20} />
                                     <p className="text-xs text-emerald-700 leading-relaxed">
-                                        These prices are updated by the facility management or scraped from official market sources. Contact the facility directly to confirm current rates before transport.
+                                        {t('These prices are updated by the facility management or scraped from official market sources. Contact the facility directly to confirm current rates before transport.')}
                                     </p>
                                 </div>
                             </div>
