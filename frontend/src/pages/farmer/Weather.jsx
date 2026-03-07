@@ -798,7 +798,7 @@ const Weather = () => {
 
                 {/* ── Factor Cards ── */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 14 }}>
-                  {impact.impacts?.map((item, i) => {
+                  {Array.isArray(impact.impacts) && impact.impacts.map((item, i) => {
                     const fs = FACTOR_STATUS[item.status] || FACTOR_STATUS.good;
                     return (
                       <div key={i} style={{ background: fs.bg, border: `1px solid ${fs.border}50`, borderRadius: 20, padding: '18px', position: 'relative', overflow: 'hidden' }}>
@@ -834,7 +834,7 @@ const Weather = () => {
                       <Zap size={18} className="text-yellow-400" /> {t('Immediate Actions')} — {t('Today')}
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                      {impact.immediateActions.map((action, i) => (
+                      {Array.isArray(impact.immediateActions) && impact.immediateActions.map((action, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.14)', borderRadius: 13, padding: '11px 14px' }}>
                           <div style={{ width: 22, height: 22, background: 'linear-gradient(135deg,#10b981,#059669)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>{i + 1}</div>
                           <p style={{ fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', margin: 0, lineHeight: 1.6 }}>{action}</p>
@@ -851,7 +851,7 @@ const Weather = () => {
                       <AlertTriangle size={18} /> {t('Key Risks This Week')}
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                      {impact.keyRisks.map((risk, i) => (
+                      {Array.isArray(impact.keyRisks) && impact.keyRisks.map((risk, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                           <ChevronRight size={14} className="text-red-400 mt-1" />
                           <p style={{ fontSize: 13, color: '#fca5a5', margin: 0, lineHeight: 1.6 }}>{risk}</p>
@@ -870,7 +870,7 @@ const Weather = () => {
                     <div style={{ position: 'relative', paddingLeft: 26 }}>
                       <div style={{ position: 'absolute', left: 8, top: 0, bottom: 0, width: 2, background: 'linear-gradient(to bottom,rgba(16,185,129,.5),rgba(16,185,129,.04))', borderRadius: 2 }} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                        {impact.weeklyAdvisory.map((item, i) => {
+                        {Array.isArray(impact.weeklyAdvisory) && impact.weeklyAdvisory.map((item, i) => {
                           const ac = ALERT_CFG[item.alertLevel] || ALERT_CFG.info;
                           const fDay = dailyForecast[i];
                           const fInfo = fDay ? getWeatherDescription(fDay.weatherCode) : null;

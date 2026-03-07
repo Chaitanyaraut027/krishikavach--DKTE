@@ -21,26 +21,6 @@ import { schemeAPI, mediaAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 
-// ── Known Government Scheme Images ──────────────────────────────────────────
-// Maps scheme name keywords to local/reliable images so we don't rely on Unsplash
-const SCHEME_IMAGES = [
-    { keywords: ['sinchayee', 'sinchai', 'pmksy', 'irrigation'], image: '/schemes/pmksy.png' },
-    { keywords: ['paramparagat', 'pkvy', 'organic farming'], image: '/schemes/pkvy.png' },
-    { keywords: ['enam', 'e-nam', 'national agriculture market'], image: '/schemes/enam.png' },
-    { keywords: ['rashtriya krishi vikas', 'rkvy'], image: '/schemes/rkvy.png' },
-    { keywords: ['mechanisation', 'mechanization', 'smam', 'farm machinery'], image: '/schemes/smam.png' },
-    { keywords: ['pm-kisan', 'pm kisan', 'kisan samman', 'किसान सम्मान'], image: 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&q=80&w=600' },
-    { keywords: ['fasal bima', 'pmfby', 'crop insurance'], image: 'https://images.unsplash.com/photo-1500382017468-9049fee74a62?auto=format&fit=crop&q=80&w=600' },
-    { keywords: ['soil health', 'mrida', 'मृदा'], image: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&q=80&w=600' },
-    { keywords: ['kisan credit', 'kcc'], image: 'https://images.unsplash.com/photo-1593113598332-cd43a6e7b3f3?auto=format&fit=crop&q=80&w=600' },
-];
-
-const getSchemeImage = (schemeTitle) => {
-    const titleLower = (schemeTitle || '').toLowerCase();
-    const match = SCHEME_IMAGES.find(s => s.keywords.some(kw => titleLower.includes(kw)));
-    return match?.image || null;
-};
-
 const Schemes = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -59,14 +39,10 @@ const Schemes = () => {
             setLoading(true);
             const res = await schemeAPI.getRecommendations(lang);
 
-            // Use local images for known schemes, fallback to Unsplash for unknown
+            // Enhance with specific Unsplash images using keywords from AI
             const recommendationsWithImages = await Promise.all(
                 res.data.recommendations.map(async (s) => {
-                    const localImage = getSchemeImage(s.title);
-                    if (localImage) {
-                        return { ...s, displayImage: localImage };
-                    }
-                    // Fallback: Unsplash search for unknown schemes
+                    // Use imageKeywords if available, otherwise fallback to title
                     const searchQuery = s.imageKeywords || `${s.title} agriculture india`;
                     const img = await mediaAPI.searchImages(searchQuery);
                     return { ...s, displayImage: img };
@@ -354,14 +330,14 @@ const Schemes = () => {
                                             alt={scheme.title}
                                             className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent" />
                                         <div className="absolute top-5 left-5">
                                             <span className="px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-xl text-[10px] font-black uppercase tracking-widest text-white border border-white/20">
                                                 {scheme.tags[0]}
                                             </span>
                                         </div>
                                         <div className="absolute bottom-6 left-6 right-6">
-                                            <h3 className="text-xl font-black text-white leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.9)' }}>
+                                            <h3 className="text-xl font-black text-white leading-tight drop-shadow-md">
                                                 {scheme.title}
                                             </h3>
                                         </div>

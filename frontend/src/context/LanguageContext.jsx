@@ -50,6 +50,11 @@ const STATIC_TRANSLATIONS = {
     'hi::Get Prices': 'कीमतें पाएं',
     'hi::Search Any Commodity': 'कोई भी जिंस खोजें',
     'hi::Share to WhatsApp': 'WhatsApp पर साझा करें',
+    'hi::N/A': 'लागू नहीं',
+    'hi::tons': 'टन',
+    'hi::kg': 'किग्रा',
+    'hi::quintal': 'क्विंटल',
+    'hi::acres': 'एकड़',
     // Marathi overrides
     'mr::Agronomist': 'कृषी तज्ज्ञ',
     'mr::Agronomists': 'कृषी तज्ज्ञ',
@@ -95,6 +100,11 @@ const STATIC_TRANSLATIONS = {
     'mr::Get Prices': 'किंमती मिळवा',
     'mr::Search Any Commodity': 'कोणतीही वस्तू शोधा',
     'mr::Share to WhatsApp': 'WhatsApp वर शेअर करा',
+    'mr::N/A': 'नाही',
+    'mr::tons': 'टन',
+    'mr::kg': 'किग्रॅ',
+    'mr::quintal': 'क्विंटल',
+    'mr::acres': 'एकर',
 };
 
 // MyMemory free API — 500 chars/request limit
@@ -199,13 +209,30 @@ export const LanguageProvider = ({ children }) => {
             strings.forEach(s => { map[s] = s; });
             return map;
         }
-        // Filter out strings that are too long for MyMemory
-        const translatable = strings.filter(s => s && s.length <= MYMEMORY_LIMIT);
-        const results = await Promise.all(translatable.map(s => translateText(s, targetLang)));
+
+        // Deduplicate and filter out strings too long or already in cache
+        const uniqueStrings = [...new Set(strings)].filter(s => s && s.length <= MYMEMORY_LIMIT);
+        const resultsMap = {};
+
+        // Process in chunks of 5 to avoid 429 (Too Many Requests)
+        const CHUNK_SIZE = 5;
+        for (let i = 0; i < uniqueStrings.length; i += CHUNK_SIZE) {
+            const chunk = uniqueStrings.slice(i, i + CHUNK_SIZE);
+            const chunkResults = await Promise.all(chunk.map(s => translateText(s, targetLang)));
+            chunk.forEach((s, idx) => { resultsMap[s] = chunkResults[idx]; });
+
+            // Small delay between chunks if there are more to process
+            if (i + CHUNK_SIZE < uniqueStrings.length) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
         const map = {};
-        translatable.forEach((s, i) => { map[s] = results[i]; });
-        // Long strings fall back to English (original text)
-        strings.filter(s => s && s.length > MYMEMORY_LIMIT).forEach(s => { map[s] = s; });
+        strings.forEach(s => {
+            if (!s) map[s] = '';
+            else if (s.length > MYMEMORY_LIMIT) map[s] = s;
+            else map[s] = resultsMap[s] || s;
+        });
         return map;
     }, []);
 

@@ -66,7 +66,7 @@ const fetchCropImage = async (cropName) => {
   try {
     const res = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodeURIComponent(cropName + ' crop farm india')}&per_page=3&orientation=landscape`,
-      { headers: { Authorization: 'Client-ID kXvLl0bDDCxjVJf1VoC8kFBZ0rSNfA9Z3bXNGnV8Mrc' } }
+      { headers: { Authorization: `Client-ID ${import.meta.env.VITE_UNSPLASH_ACCESS_KEY || 'kXvLl0bDDCxjVJf1VoC8kFBZ0rSNfA9Z3bXNGnV8Mrc'}` } }
     );
     if (!res.ok) throw new Error();
     const data = await res.json();

@@ -57,6 +57,18 @@ const QUICK_COMMODITIES = [
 const fmt = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN')}` : '—';
 const fmtShort = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
+// Safe text helper — prevents "Objects are not valid as a React child"
+const safeText = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+        // If it's the price object found in logs, format it nicely
+        if (val.modalPrice || val.avgPrice) return `₹${(val.modalPrice || val.avgPrice || 0).toLocaleString()}`;
+        return JSON.stringify(val);
+    }
+    return String(val);
+};
+
 // ── Trend helpers ──────────────────────────────────────────────────────────
 const TREND = {
     rising: { icon: TrendingUp, label: 'Rising', bg: '#fef2f2', text: '#dc2626', border: '#fca5a5', dot: '#ef4444' },
@@ -264,7 +276,7 @@ const PriceIntelPanel = ({ commodity, district, state, onClose }) => {
                     {data.summary && (
                         <div style={{ margin: '20px 24px 0', background: isDark ? 'rgba(99,102,241,0.1)' : '#f8fafc', border: isDark ? '1px solid rgba(99,102,241,0.25)' : '1px solid #e2e8f0', borderRadius: 16, padding: '12px 16px' }}>
                             <p style={{ color: isDark ? '#a5b4fc' : '#4f46e5', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Market Summary</p>
-                            <p style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{data.summary}</p>
+                            <p style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{safeText(data.summary)}</p>
                         </div>
                     )}
 
@@ -276,7 +288,7 @@ const PriceIntelPanel = ({ commodity, district, state, onClose }) => {
                                     <p style={{ color: isDark ? '#fbbf24' : '#b45309', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <CloudSun size={12} /> Seasonal Insight
                                     </p>
-                                    <p style={{ color: isDark ? '#fde68a' : '#92400e', fontSize: 12, lineHeight: 1.5, margin: 0 }}>{data.seasonalInsight}</p>
+                                    <p style={{ color: isDark ? '#fde68a' : '#92400e', fontSize: 12, lineHeight: 1.5, margin: 0 }}>{safeText(data.seasonalInsight)}</p>
                                 </div>
                             )}
                             {data.bestTimeToSell && (
@@ -284,7 +296,7 @@ const PriceIntelPanel = ({ commodity, district, state, onClose }) => {
                                     <p style={{ color: isDark ? '#34d399' : '#166534', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Lightbulb size={12} /> Best Time to Sell
                                     </p>
-                                    <p style={{ color: isDark ? '#a7f3d0' : '#15803d', fontSize: 12, lineHeight: 1.5, margin: 0 }}>{data.bestTimeToSell}</p>
+                                    <p style={{ color: isDark ? '#a7f3d0' : '#15803d', fontSize: 12, lineHeight: 1.5, margin: 0 }}>{safeText(data.bestTimeToSell)}</p>
                                 </div>
                             )}
                         </div>
@@ -337,7 +349,8 @@ const PriceIntelPanel = ({ commodity, district, state, onClose }) => {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                                         {isNearest && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 6px #34d399' }} />}
                                                         <span style={{ color: isDark ? '#f1f5f9' : '#1e293b', fontWeight: 700, fontSize: 14 }}>{m.marketName}</span>
-                                                        {isNearest && <span style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399', borderRadius: 999, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}>Nearest</span>}
+                                                        {m.isFacility && <span style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', borderRadius: 999, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}>Verified Facility</span>}
+                                                        {isNearest && !m.isFacility && <span style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399', borderRadius: 999, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}>Nearest</span>}
                                                     </div>
                                                     <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                                                         <span style={{ color: '#64748b', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} /> {m.district}</span>

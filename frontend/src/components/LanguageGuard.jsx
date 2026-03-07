@@ -97,8 +97,8 @@ const LanguageGuard = ({ children }) => {
                     onClick={() => handleSelect(language.code)}
                     disabled={selecting}
                     className={`lang-card w-full flex items-center gap-4 p-5 rounded-2xl border-2 text-left disabled:opacity-60 disabled:cursor-not-allowed shadow-sm ${isPrev
-                        ? 'lang-card-prev hover:shadow-xl'
-                        : 'border-gray-100 hover:border-green-400 hover:bg-green-50 bg-gray-50 hover:shadow-lg'
+                      ? 'lang-card-prev hover:shadow-xl'
+                      : 'border-gray-100 hover:border-green-400 hover:bg-green-50 bg-gray-50 hover:shadow-lg'
                       }`}
                   >
                     <span className="text-4xl">{language.flag}</span>
@@ -148,26 +148,30 @@ const LanguageGuard = ({ children }) => {
     );
   }
 
-  // Dim overlay while translations are loading after language switch
-  if (translating) {
-    return (
-      <div className="relative">
-        {children}
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-2xl px-8 py-5 flex items-center gap-4 shadow-2xl border border-gray-100">
-            <svg className="spin w-7 h-7 text-green-600" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-gray-700 font-medium">Translating UI…</span>
-          </div>
-        </div>
-        <style>{`@keyframes spin360 { to { transform: rotate(360deg); } } .spin { animation: spin360 0.9s linear infinite; }`}</style>
-      </div>
-    );
-  }
 
-  return children;
+  return (
+    <>
+      {children}
+      {translating && (
+        <div className="fixed bottom-6 right-6 z-[9999] animate-bounce-slow">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl px-5 py-3 shadow-2xl border border-green-100 flex items-center gap-3">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-5 h-5 border-2 border-green-200 rounded-full" />
+              <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider mb-0.5">Optimizing Experience</p>
+              <p className="text-[13px] text-gray-700 font-medium">Translating UI…</p>
+            </div>
+          </div>
+          <style>{`
+            @keyframes bounceSlow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+            .animate-bounce-slow { animation: bounceSlow 3s ease-in-out infinite; }
+          `}</style>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default LanguageGuard;
